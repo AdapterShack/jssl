@@ -1,15 +1,15 @@
 JSSL is a Java implementation of a HTTP, HTTPS, SSL, and TCP sockets client.
 
-Command-line options are intended to be reminscent of keytool is they deal with
-keystores, and as similar as possible to cUrl otherwise. Obviously, not every option 
+Command-line options are intended to be reminscent of keytool if they deal with
+keystores, and similar as possible to cUrl otherwise. Obviously, not every option 
 of either of those tools is being copied.
 
 Why, one may ask, is this needed? Multiple client software for these protocols
-exists, much of it extremely mature of featureful.
+exists, much of it extremely mature and featureful.
 
 The main reason is I needed to exactly emulate the behavior of one Java application
 calling another using client certificate authentication, and openssl (the usual
-goto) wasn't getting close enough. TLS is a complex protocol and the implementation
+go-to) wasn't getting close enough. TLS is a complex protocol and the implementation
 matters. By writing this tool in Java, I ensure that the same SSL engine used
 in my actual production applications is being used by this tool.
 
