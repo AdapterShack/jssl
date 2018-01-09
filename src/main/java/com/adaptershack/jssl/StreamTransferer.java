@@ -7,6 +7,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.PrintWriter;
 
+// Borrowed from https://gist.github.com/rafalrusin/2732001#file-streamtransferer-java
 public class StreamTransferer implements Runnable {
 	private InputStream input;
 	private OutputStream output;
