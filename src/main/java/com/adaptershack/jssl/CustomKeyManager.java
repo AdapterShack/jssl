@@ -6,6 +6,7 @@ import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
 
 import javax.net.ssl.X509KeyManager;
+import static com.adaptershack.jssl.Log.*;
 
 public class CustomKeyManager implements X509KeyManager {
 	
@@ -20,6 +21,7 @@ public class CustomKeyManager implements X509KeyManager {
 
 	@Override
 	public String chooseClientAlias(String[] arg0, Principal[] arg1, Socket arg2) {
+		log("chooseClientAlias: returning: " + alias);
 		return alias;
 	}
 

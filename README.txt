@@ -28,6 +28,8 @@ usage: java -jar [this-jar-file] [options] url
 Options
     --alias <arg>           use alias from keystore
     --content-type <arg>    force content type
+    --crlf                  in socket mode, perform outbound CRLF
+                            translation
  -d,--data <arg>            data to be posted to server
  -f,--file <arg>            file to be posted to server
  -H,--header <arg>          add custom HTTP header(s)
@@ -36,9 +38,12 @@ Options
     --keypass <arg>         password to extract key from store
     --keystore <arg>        custom keystore for client certs, if any
     --keystore-type <arg>   keystore type (default PKCS12)
- -L,--location <arg>        follow redirect
-    --no-cache <arg>        disallow caching
+ -L,--location              follow redirect
+ -n,--no-body               skip printing out the actual response body
+    --no-cache              disallow caching
+ -o,--out-file <arg>        write response body to file
  -p,--ssl-protocol <arg>    protocol to intialize SSLContext
+ -s,--silent                silences progress messages
     --storepass <arg>       password to open keystore
  -X,--request <arg>         force request method
 

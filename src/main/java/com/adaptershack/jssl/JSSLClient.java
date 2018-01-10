@@ -3,6 +3,7 @@ package com.adaptershack.jssl;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -29,9 +30,12 @@ import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509KeyManager;
 
+import static com.adaptershack.jssl.Log.*;
+
 public class JSSLClient {
 	
 	
+	public static final String DEFAULT_PROTOCOL = "TLSv1.2";
 	boolean useSSL;
 	boolean useSocket;
 	boolean insecure;
@@ -52,7 +56,7 @@ public class JSSLClient {
 	private String host;
 	private int port;
 	
-	String sslProtocol = "TLSv1.2";
+	String sslProtocol = DEFAULT_PROTOCOL;
 	
 	private boolean followRedirects;
 	private boolean useCaches;
@@ -65,8 +69,13 @@ public class JSSLClient {
 	private boolean includeHeaders;
 	
 	private boolean crlf;
+	private boolean printBody = true;
 	
-
+	private String outFileName;
+	
+	private String method;
+	
+	
 	public void run (String urlString) throws Exception {
 
 		parseUrl(urlString);
@@ -92,34 +101,53 @@ public class JSSLClient {
 
 	private void doSocket() throws IOException, UnknownHostException, InterruptedException {
 		
+		log("Opening " + (useSSL ? "SSL " : " ") + "socket to " + host + ":" + port );
+		
 		Socket socket = useSSL ? socketFactory.createSocket(host, port) 
 				: new Socket(host,port);
 		
-		InputStream socketIn = socket.getInputStream();
-		OutputStream socketOut = socket.getOutputStream();
-		
-		byte[] rawData = null;
-		
-		if(data != null) {
-			rawData = unescapeJavaString(data).getBytes();
-		} else if (dataFileName != null) {
-			rawData = Files.readAllBytes(Paths.get(dataFileName));
+		try(
+			InputStream socketIn = socket.getInputStream();
+			OutputStream socketOut = socket.getOutputStream();
+			OutputStream copyOut = outFileName == null ? null : new FileOutputStream(outFileName);
+		) {
+				
+			byte[] rawData = null;
+	
+			banner("Connected to " + host + ":" + port);
+			
+			if(data != null) {
+				String unescaped = unescapeJavaString(data);
+				
+				if(crlf) {
+					unescaped = unescaped.replaceAll("(?<!\r)\n", "\r\n");
+				}
+				
+				rawData = unescaped.getBytes();
+				
+				
+			} else if (dataFileName != null) {
+				rawData = Files.readAllBytes(Paths.get(dataFileName));
+			}
+			
+			if(rawData != null) {
+				socketOut.write(rawData);
+				socketOut.flush();
+				log("Wrote " + rawData.length + " bytes");
+			}
+			
+			Thread fromServer = new Thread( new StreamTransferer(socketIn, stdout, copyOut, false));
+			Thread toServer = new Thread( new StreamTransferer(stdin, socketOut, null, crlf));
+			
+			fromServer.start();
+			toServer.start();
+			
+			fromServer.join();
+			
+			banner("Connection closed by server");
+			
+			toServer.interrupt();
 		}
-		
-		if(rawData != null) {
-			socketOut.write(rawData);
-			socketOut.flush();
-		}
-		
-		Thread fromServer = new Thread( new StreamTransferer(socketIn, stdout));
-		Thread toServer = new Thread( new StreamTransferer(stdin, socketOut));
-		
-		fromServer.start();
-		toServer.start();
-		
-		fromServer.join();
-		
-		toServer.interrupt();
 		
 		System.exit(0);
 	}
@@ -127,10 +155,14 @@ public class JSSLClient {
 
 
 	private void doURL(String urlString) throws IOException, MalformedURLException, Exception {
+
+		HttpURLConnection.setFollowRedirects(followRedirects);
+
+		log("executing URL: " + urlString);
+		
 		HttpURLConnection connection = (HttpURLConnection)
 				new URL(urlString).openConnection();
 		
-		HttpURLConnection.setFollowRedirects(followRedirects);
 		connection.setUseCaches(useCaches);
 		
 		if(connection instanceof HttpsURLConnection) {
@@ -146,6 +178,10 @@ public class JSSLClient {
 					connection.setRequestProperty(key, value);
 				}
 			}
+		}
+
+		if(method != null) {
+			connection.setRequestMethod(method);
 		}
 		
 		byte[] postData = null;
@@ -184,6 +220,17 @@ public class JSSLClient {
 		
 		byte[] responseData = readAll(connection);
 		
+		log("Read " + responseData.length + " bytes");
+
+		if(outFileName != null) {
+			try(FileOutputStream fout = new FileOutputStream(outFileName)) {
+				fout.write(responseData);
+				log("Wrote " + responseData.length + " bytes to " + outFileName);
+			}
+		}
+		
+		banner("Response:");
+		
 		if( this.includeHeaders ) {
 			Map<String, List<String>> m = connection.getHeaderFields();
 			if( m.containsKey(null)) {
@@ -201,8 +248,11 @@ public class JSSLClient {
 			stdout.println();
 		}
 		
-		stdout.write(responseData);
+		if(printBody) {
+			stdout.write(responseData);
+		}
 		stdout.flush();
+		
 	}
 
 
@@ -261,13 +311,21 @@ public class JSSLClient {
 		KeyManager[] keyManagers = getKeyManagers();
 		TrustManager[] trustManagers = getTrustManagers();
 
+		SSLSocketFactory socketFactory;
+		
 		if(keyManagers != null || trustManagers != null) {
+			log("Creating SSLContext for " + sslProtocol);
 			SSLContext sslContext = SSLContext.getInstance(this.sslProtocol);
 			sslContext.init(keyManagers, trustManagers, null);
-			return sslContext.getSocketFactory();
+			log("Creating SSLSocketFactory");
+			socketFactory = sslContext.getSocketFactory();
 		} else {
-			return (SSLSocketFactory) SSLSocketFactory.getDefault();
+			log("Using default SSLSocketFactory");
+			socketFactory = (SSLSocketFactory) SSLSocketFactory.getDefault();
 		}
+		
+		log("SocketFactory = " + socketFactory.getClass().getName());
+		return socketFactory;
 		
 	}
 
@@ -276,8 +334,10 @@ public class JSSLClient {
 	private TrustManager[] getTrustManagers() {
 		
 		if(insecure) {
+			log("Creating TrustManager");
 			HttpsURLConnection.setDefaultHostnameVerifier(new TrustingHostnameVerifier());	
 			TrustManager[] tm = { new TrustingTrustManager() };
+			log("TrustManagers: ",tm);
 			return tm;
 		}
 		
@@ -305,17 +365,25 @@ public class JSSLClient {
 			KeyStore ks = KeyStore.getInstance(keystoreType == null ? "PKCS12" : keystoreType);
 			
 			try(FileInputStream f = new FileInputStream(keystore)) {
+				log("Loading keystore");
 				ks.load(f, storepass);
 			}
 			
 			KeyManagerFactory kmf = KeyManagerFactory
 					.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+
+			log("KeyManagerFactory = " + kmf.getClass().getName());
 			
 			kmf.init(ks, keypass);
 			
+			log("Creating KeyManagers");
+
 			KeyManager[] keyManagers = kmf.getKeyManagers();
 			
+			log("KeyManagers: ",keyManagers);
+
 			if(alias != null) {
+				log("Using alias " + alias);
 				for( int i=0; i< keyManagers.length; i++) {
 					keyManagers[i] = new CustomKeyManager((X509KeyManager) keyManagers[i],alias);
 				}
@@ -368,10 +436,8 @@ public class JSSLClient {
 
 
 
-	public void setSslProtocol(String sslProtocol) {
-		if(sslProtocol != null) {
-			this.sslProtocol = sslProtocol;
-		}
+	public void setSslProtocol(String _sslProtocol) {
+		this.sslProtocol = _sslProtocol;
 	}
 
 	public InputStream getStdin() {
@@ -608,6 +674,42 @@ public class JSSLClient {
             sb.append(ch);
         }
         return sb.toString();
-    }	
+    }
+
+
+
+	public boolean isPrintBody() {
+		return printBody;
+	}
+
+
+
+	public void setPrintBody(boolean printBody) {
+		this.printBody = printBody;
+	}
+
+
+
+	public String getOutFileName() {
+		return outFileName;
+	}
+
+
+
+	public void setOutFileName(String outFileName) {
+		this.outFileName = outFileName;
+	}
+
+
+
+	public String getMethod() {
+		return method;
+	}
+
+
+
+	public void setMethod(String method) {
+		this.method = method;
+	}
 
 }
