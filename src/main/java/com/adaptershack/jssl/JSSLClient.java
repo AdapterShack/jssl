@@ -1,11 +1,14 @@
 package com.adaptershack.jssl;
 
+import java.io.BufferedReader;
+import static com.adaptershack.jssl.HeaderAwareOutputStream.*;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.net.HttpURLConnection;
@@ -35,6 +38,7 @@ import static com.adaptershack.jssl.Log.*;
 public class JSSLClient {
 	
 	
+	private static final int DEFAULT_BUFFER = 1024;
 	public static final String DEFAULT_PROTOCOL = "TLSv1.2";
 	boolean useSSL;
 	boolean useSocket;
@@ -75,6 +79,12 @@ public class JSSLClient {
 	
 	private String method;
 	
+	private boolean binary;
+	
+	private int bufsize = DEFAULT_BUFFER;
+	
+	private boolean skipHeaders;
+	
 	
 	public void run (String urlString) throws Exception {
 
@@ -109,9 +119,19 @@ public class JSSLClient {
 		try(
 			InputStream socketIn = socket.getInputStream();
 			OutputStream socketOut = socket.getOutputStream();
-			OutputStream copyOut = outFileName == null ? null : new FileOutputStream(outFileName);
-		) {
+
+			FileOutputStream fileOut = 
+					outFileName == null ? null : new FileOutputStream(outFileName);
 				
+		) {			
+
+			CountingStream counter =
+					fileOut == null ? null : new CountingStream(fileOut);
+
+			OutputStream copyOut =
+				counter == null ? null :
+					skipHeaders ? skipHeaders(counter) : counter;
+			
 			byte[] rawData = null;
 	
 			banner("Connected to " + host + ":" + port);
@@ -120,7 +140,7 @@ public class JSSLClient {
 				String unescaped = unescapeJavaString(data);
 				
 				if(crlf) {
-					unescaped = unescaped.replaceAll("(?<!\r)\n", "\r\n");
+					unescaped = replaceCRLF(unescaped);
 				}
 				
 				rawData = unescaped.getBytes();
@@ -128,28 +148,58 @@ public class JSSLClient {
 				
 			} else if (dataFileName != null) {
 				rawData = Files.readAllBytes(Paths.get(dataFileName));
+				
+				if(crlf) {
+					String stringData = new String(rawData);
+					rawData = replaceCRLF(stringData).getBytes();
+				}
 			}
 			
 			if(rawData != null) {
 				socketOut.write(rawData);
 				socketOut.flush();
-				log("Wrote " + rawData.length + " bytes");
+				log("Wrote " + rawData.length + " bytes to server");
 			}
 			
-			Thread fromServer = new Thread( new StreamTransferer(socketIn, stdout, copyOut, false));
-			Thread toServer = new Thread( new StreamTransferer(stdin, socketOut, null, crlf));
+			Thread fromServer, toServer;
+			
+			OutputStream stdout1;
+			if( printBody ) {
+				stdout1 = stdout;
+			} else {
+				log("Console will only show HTTP headers up to first blank line.");
+				stdout1 = skipBody(stdout);
+			}
+			
+			if(binary) {
+				fromServer = new Thread( new BinaryStreamTransferer(socketIn, stdout1, copyOut, false, bufsize));
+				toServer = new Thread( new BinaryStreamTransferer(stdin, socketOut, null, crlf, bufsize));
+			} else {
+				fromServer = new Thread( new TextStreamTransferer(socketIn, stdout1, copyOut, false));
+				toServer = new Thread( new TextStreamTransferer(stdin, socketOut, null, crlf));
+			}
 			
 			fromServer.start();
 			toServer.start();
 			
 			fromServer.join();
-			
+
 			banner("Connection closed by server");
+			
+			if(counter != null) {
+				log("Wrote " + counter.getCount() + " bytes to " + outFileName);
+			}
 			
 			toServer.interrupt();
 		}
 		
 		System.exit(0);
+	}
+
+
+
+	private String replaceCRLF(String unescaped) {
+		return unescaped.replaceAll("(?<!\r)\n", "\r\n");
 	}
 
 
@@ -710,6 +760,42 @@ public class JSSLClient {
 
 	public void setMethod(String method) {
 		this.method = method;
+	}
+
+
+
+	public boolean isBinary() {
+		return binary;
+	}
+
+
+
+	public void setBinary(boolean binary) {
+		this.binary = binary;
+	}
+
+
+
+	public int getBufsize() {
+		return bufsize;
+	}
+
+
+
+	public void setBufsize(int bufsize) {
+		this.bufsize = bufsize;
+	}
+
+
+
+	public boolean isSkipHeaders() {
+		return skipHeaders;
+	}
+
+
+
+	public void setSkipHeadersInOutfile(boolean skipHeaders) {
+		this.skipHeaders = skipHeaders;
 	}
 
 }

@@ -3,6 +3,7 @@ package com.adaptershack.jssl;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.HelpFormatter;
+import org.apache.commons.cli.OptionGroup;
 import org.apache.commons.cli.Options;
 
 /**
@@ -15,25 +16,38 @@ public class Main  {
         
 		Options options = new Options();
 
-		options.addOption("i","include", false, "include response headers in output");
+		// common options
 		options.addOption("s","silent", false, "silences progress messages");
 		options.addOption("k", "insecure", false, "ignore SSL validation errors");
 		options.addOption(null, "keystore", true, "custom keystore for client certs, if any");
 		options.addOption(null, "keypass", true, "password to extract key from store");
 		options.addOption(null, "storepass", true, "password to open keystore");			
-		options.addOption("H", "header", true, "add custom HTTP header(s)");			
+		options.addOption("o","out-file",true,"write response body to file");
 		options.addOption("d", "data", true, "data to be posted to server");
 		options.addOption("f", "file", true, "file to be posted to server");
 		options.addOption("X", "request", true, "force request method");
-		options.addOption(null, "content-type", true, "force content type");
 		options.addOption("p", "ssl-protocol", true, "protocol to intialize SSLContext");
-		options.addOption("L", "location", false, "follow redirect");
-		options.addOption(null, "no-cache", false, "disallow caching");
 		options.addOption(null,"alias",true,"use alias from keystore");
 		options.addOption(null,"keystore-type", true, "keystore type (default PKCS12)");
-		options.addOption(null,"crlf",false,"in socket mode, perform outbound CRLF translation");
+
+		// options only for HTTP(s)
+		options.addOption(null, "content-type", true, "force content type");
 		options.addOption("n","no-body",false,"skip printing out the actual response body");
-		options.addOption("o","out-file",true,"write response body to file");
+		options.addOption("L", "location", false, "follow redirect");
+		options.addOption(null, "no-cache", false, "disallow caching");
+		options.addOption("i","include", false, "include response headers in output");
+		options.addOption("H", "header", true, "add custom HTTP header(s)");			
+		
+		// options only for sockets
+		options.addOption(null,"crlf",false,"in socket mode, perform outbound CRLF translation");
+		options.addOption("b","binary",false,"use i/o streams for socket mode, not reader/writer - "
+				+ "theoretically making it 8-bit clean");
+		options.addOption(null,"buffer",true,"buffer size for binary mode (default 1024)");
+		options.addOption(null,"skip-headers",false,"in socket mode, omit headers from out-file");
+
+		options.addOption(null,"download",true,"print only headers, write only body to file "
+				+ "(equivalent -b -i -n --skip-headers -o <arg>)");
+		
 		
         DefaultParser parser = new DefaultParser();
         
@@ -69,6 +83,17 @@ public class Main  {
         client.setPrintBody(!cmdLine.hasOption("no-body"));
         client.setOutFileName(cmdLine.getOptionValue("out-file"));
         client.setMethod(cmdLine.getOptionValue("X"));
+        client.setBinary(cmdLine.hasOption("binary"));
+        client.setBufsize( Integer.parseInt( cmdLine.getOptionValue("buffer","1024")));
+        client.setSkipHeadersInOutfile(cmdLine.hasOption("skip-headers"));
+        
+        if(cmdLine.hasOption("download")) {
+        	client.setPrintBody(false);
+        	client.setIncludeHeaders(true);
+        	client.setBinary(true);
+        	client.setOutFileName(cmdLine.getOptionValue("download"));
+        	client.setSkipHeadersInOutfile(true);
+        }
         
         client.run(cmdLine.getArgList().get(0));
         

@@ -8,12 +8,12 @@ import java.io.OutputStream;
 import java.io.PrintWriter;
 
 // Borrowed from https://gist.github.com/rafalrusin/2732001#file-streamtransferer-java
-public class StreamTransferer implements Runnable {
+public class TextStreamTransferer implements Runnable {
 	private InputStream input;
 	private OutputStream output, copyOut;
 	private boolean crlf;
 
-	public StreamTransferer(InputStream input, OutputStream output, OutputStream copyOut, boolean crlf) {
+	public TextStreamTransferer(InputStream input, OutputStream output, OutputStream copyOut, boolean crlf) {
 		this.input = input;
 		this.output = output;
 		this.crlf = crlf;
