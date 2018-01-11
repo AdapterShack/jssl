@@ -1,5 +1,6 @@
 package com.adaptershack.jssl;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.zip.GZIPInputStream;
@@ -14,24 +15,31 @@ public class CountingZipStream extends InputStream {
 	
 	public CountingZipStream(final InputStream rawStream) throws IOException {
 		
-		zipStream = new GZIPInputStream(
-			new InputStream() {
-				@Override
-				public int read() throws IOException {
-					int b = rawStream.read();
-					if(b != -1) {
-						compressed++;
+		try {
+			zipStream = new GZIPInputStream(
+				new InputStream() {
+					@Override
+					public int read() throws IOException {
+						int b = rawStream.read();
+						if(b != -1) {
+							compressed++;
+						}
+						return b;
 					}
-					return b;
-				}
-			});
-		
+				});
+		} catch (EOFException e) {
+			Log.log("Could not initialize gzip, already at EOF");
+		}
 	}
 
 
 	@Override
 	public int read() throws IOException {
 
+		if(zipStream == null) {
+			return -1;
+		}
+		
 		int b = zipStream.read();
 		if(b != -1) {
 			uncompressed++;
@@ -49,6 +57,8 @@ public class CountingZipStream extends InputStream {
 	}
 	
 	public double getRatio() {
-		return (double) uncompressed / (double) compressed;
+		return 
+			compressed > 0 ?
+				(double) uncompressed / (double) compressed : 1;
 	}
 }
