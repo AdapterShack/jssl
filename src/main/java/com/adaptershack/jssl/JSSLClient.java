@@ -247,7 +247,7 @@ public class JSSLClient {
 			connection.setRequestMethod(method);
 		}
 
-		connection.connect();
+		//connection.connect();
 		
 		byte[] postData = null;
 		
