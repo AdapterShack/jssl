@@ -2,13 +2,13 @@
   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>org.jssl</groupId>
+  <groupId>com.adaptershack</groupId>
   <artifactId>jssl-client</artifactId>
   <version>0.0.1-SNAPSHOT</version>
   <packaging>jar</packaging>
 
   <name>jssl-client</name>
-  <url>http://maven.apache.org</url>
+  <url>https://github.com/AdapterShack/jsslg</url>
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -43,6 +43,7 @@
 		        <goal>shade</goal>
 		      </goals>
 		      <configuration>
+		      	<finalName>jssl</finalName>
 		        <minimizeJar>true</minimizeJar>
 		        <shadedArtifactAttached>true</shadedArtifactAttached>
 		        <finalArtifact>jssl</finalArtifact>
