@@ -46,7 +46,7 @@ public class Main  {
 		options.addOption(null,"skip-headers",false,"in socket mode, omit headers from out-file");
 
 		options.addOption(null,"download",true,"print only headers, write only body to file "
-				+ "(equivalent -i -n --skip-headers -o <arg>)");
+				+ "(equivalent to -i -n -o for http, -b -n --skip-headers -o for socket)");
 		
 		
         DefaultParser parser = new DefaultParser();

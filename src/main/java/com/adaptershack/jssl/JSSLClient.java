@@ -215,7 +215,6 @@ public class JSSLClient {
 	private void doURL(String urlString) throws IOException, MalformedURLException, Exception {
 
 		Authenticator.setDefault(new CustomAuthenticator());
-		HttpURLConnection.setFollowRedirects(followRedirects);
 
 		log("executing URL: " + urlString);
 		
@@ -223,6 +222,7 @@ public class JSSLClient {
 				new URL(urlString).openConnection();
 		
 		connection.setUseCaches(useCaches);
+		connection.setInstanceFollowRedirects(followRedirects);
 		
 		if(connection instanceof HttpsURLConnection) {
 			((HttpsURLConnection) connection).setSSLSocketFactory(socketFactory);
@@ -246,6 +246,8 @@ public class JSSLClient {
 		if(method != null) {
 			connection.setRequestMethod(method);
 		}
+
+		connection.connect();
 		
 		byte[] postData = null;
 		
