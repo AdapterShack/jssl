@@ -13,7 +13,6 @@ import java.nio.file.Paths;
 import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.zip.GZIPInputStream;
 
 public class Utils {
 
@@ -21,25 +20,31 @@ public class Utils {
 		try ( InputStream is = getStream(connection)) {
 	
 			String charset = getCharset(connection);
-			
-			if( is != null && useCharset && charset != null ) {
 
-				Log.log("Translating server charset %s to local %s",
-						charset,
-						System.getProperty("file.encoding"));
-				
-				return toByteArray(is, charset);
-			
-			}	if( is != null) {
-				
-				if(charset != null) {
-					Log.log("Downloading server charset %s unmodified", charset);
-				}
-				
-				return toByteArray(is);
+			try {
+				if( is != null && useCharset && charset != null ) {
 	
-			} else {
-				return new byte[0];
+					Log.log("Translating server charset %s to local %s",
+							charset,
+							System.getProperty("file.encoding"));
+					
+					return toByteArray(is, charset);
+				
+				}	if( is != null) {
+					
+					if(charset != null) {
+						Log.log("Downloading server charset %s unmodified", charset);
+					}
+					
+					return toByteArray(is);
+		
+				} else {
+					return new byte[0];
+				}
+			} finally {
+				if ( is instanceof CountingZipStream) {
+					Log.log("Read %s compressed bytes", ((CountingZipStream) is).rawBytes());
+				}
 			}
 		}
 	}
@@ -96,7 +101,7 @@ public class Utils {
 		}
 		
 		return "gzip".equals(connection.getContentEncoding()) ?
-				new GZIPInputStream(is) : is;
+				new CountingZipStream(is) : is;
 		
 	}
 
