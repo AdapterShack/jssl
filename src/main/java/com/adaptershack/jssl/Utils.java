@@ -43,7 +43,12 @@ public class Utils {
 				}
 			} finally {
 				if ( is instanceof CountingZipStream) {
-					Log.log("Read %s compressed bytes", ((CountingZipStream) is).rawBytes());
+					@SuppressWarnings("resource")
+					CountingZipStream is2 = (CountingZipStream) is;
+					Log.log("Read %s compressed bytes, inflated to %s bytes (%.2f:1)",
+							is2.getCompressed(), is2.getUncompressed(),
+							is2.getRatio()
+							);
 				}
 			}
 		}

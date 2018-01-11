@@ -10,7 +10,7 @@ public class CountingZipStream extends InputStream {
 	InputStream rawStream;
 	GZIPInputStream zipStream;
 	
-	int rawbytes = 0;
+	int compressed, uncompressed = 0;
 	
 	
 	public CountingZipStream(InputStream rawStream) throws IOException {
@@ -22,7 +22,7 @@ public class CountingZipStream extends InputStream {
 				public int read() throws IOException {
 					int b = rawStream.read();
 					if(b != -1) {
-						rawbytes++;
+						compressed++;
 					}
 					return b;
 				}
@@ -34,12 +34,23 @@ public class CountingZipStream extends InputStream {
 	@Override
 	public int read() throws IOException {
 
-		return zipStream.read();
-	
+		int b = zipStream.read();
+		if(b != -1) {
+			uncompressed++;
+		}
+		return b;
+		
 	}
 	
-	public int rawBytes() {
-		return rawbytes;
+	public int getCompressed() {
+		return compressed;
+	}
+
+	public int getUncompressed() {
+		return uncompressed;
 	}
 	
+	public double getRatio() {
+		return (double) uncompressed / (double) compressed;
+	}
 }
