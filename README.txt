@@ -1,6 +1,6 @@
 JSSL is a Java implementation of a HTTP, HTTPS, SSL, and TCP sockets client.
 
-Command-line options are intended to be reminscent of keytool if they deal with
+Command-line options are intended to be reminescent of keytool if they deal with
 keystores, and roughly similar to cUrl otherwise. Obviously, not every option 
 of either of those tools is being copied.
 
@@ -22,15 +22,27 @@ The following URL schemes are supported:
   tcp      plain, unencrypted TCP sockets; will open an interactive session
 
   ssl      opens an SSL socket for interaction
+  
+Http(s) URL's support the conventional syntax for basic authentication:
+
+   http://user:password@www.whatever.com
+   
+If authentication is actually required by the server, the user will be prompted.
 
 The two "socket" schemes (ssl and tcp) are intended mainly for protocol-level debugging
 of HTTP(s) servers. The level of interactivity is rudimentary: each line typed is 
 sent to the server, each lined written by the server is echoed back.
 
-In particular, the "ssl" protcol does not make this an *SSH* client. SSH is an entirely
+In particular, the "ssl" protocol does not make this an *SSH* client. SSH is an entirely
 separate protocol which is not at all supported by this tool. You could theoretically
 use "tcp" mode as a very dumb telnet client, if there were still any telnet systems online
 in <current year>.
+
+It is a deliberate design goal to provide a "fat" executable jar (containing all
+dependencies) that is as skinny as possible. Towards this goal, many common libraries
+are not used. We do without HttpComponents, commons-lang, slf4j, or any of their
+equivalents. The fact that this is doable, shows that the JDK provides much more
+useful built-in functionality now that it once did.
 
 usage: java -jar [this-jar-file] [options] url
 
@@ -71,6 +83,14 @@ Retrieving a page from a server:
 
    java -jar jssl.jar https://www.example.com/whatever.html
 
+Using a keystore containing a client certificate:
+
+   java -jar jssl.jar https://www.example.com --keystore foo.p12 --keypass changeit
+
+Using a keystore containing multiple client certs, and selecting a particalar alias to send:
+
+   java -jar jssl.jar https://www.example.com --keystore foo.p12 --keypass changeit --alias myalias
+
 Posting JSON content to a server (content-type "application/json" is inferred by inspecting the data):
 
    java -jar jssl.jar https://www.example.com/api/login -d '{"user":"jeff","password":"xxxxx"}'
@@ -108,13 +128,6 @@ Compose an arbitrary HTTP request and download the result:
 
 There is no need for -b here either, because --download auto-enables it.
 
-Using a keystore continaing a client certificate:
-
-   java -jar jssl.jar https://www.example.com --keystore foo.p12 --keypass changeit
-
-Using a keystore containing multiple client certs, and selecting a particalar alias to send:
-
-   java -jar jssl.jar https://www.example.com --keystore foo.p12 --keypass changeit --alias myalias
 
 
 
