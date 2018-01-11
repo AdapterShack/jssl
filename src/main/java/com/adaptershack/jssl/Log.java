@@ -28,18 +28,24 @@ public class Log {
 	
 	
 	private static void println(String s) {
-		if(!quiet) {
+		if(enabled()) {
 			if(stdout == null) {
 				throw new IllegalStateException("Logging not initalized");
 			}
 			stdout.println(s);
 		}
 	}
+
+	public static boolean enabled() {
+		return !quiet;
+	}
 	
 	public static void log(String s, Object... args ) {
-		if(!quiet) {
+		if(enabled()) {
 			try {
-				println(prefix() + String.format(s,args));
+				println(prefix() + 
+						(args.length > 0 ?
+						String.format(s,args) : s));
 			} catch (IllegalFormatException e) {
 				println(prefix() + s);
 			}
