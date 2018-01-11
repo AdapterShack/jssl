@@ -7,14 +7,12 @@ import java.util.zip.GZIPInputStream;
 public class CountingZipStream extends InputStream {
 
 	
-	InputStream rawStream;
 	GZIPInputStream zipStream;
 	
 	int compressed, uncompressed = 0;
 	
 	
-	public CountingZipStream(InputStream rawStream) throws IOException {
-		this.rawStream = rawStream;
+	public CountingZipStream(final InputStream rawStream) throws IOException {
 		
 		zipStream = new GZIPInputStream(
 			new InputStream() {

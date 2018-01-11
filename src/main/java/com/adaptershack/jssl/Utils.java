@@ -16,6 +16,8 @@ import java.util.regex.Pattern;
 
 public class Utils {
 
+	private static final int COPY_BUFFER = 1024*16;
+
 	public static byte[] readAll(HttpURLConnection connection, boolean useCharset) throws Exception {
 		try ( InputStream is = getStream(connection)) {
 	
@@ -65,7 +67,7 @@ public class Utils {
 		InputStreamReader reader = new InputStreamReader(is,charset);
 		
 		int nRead;
-		char[] data = new char[1024*16];
+		char[] data = new char[COPY_BUFFER];
 	
 		while ((nRead = reader.read(data, 0, data.length)) != -1) {
 		  writer.write(data, 0, nRead);
@@ -80,7 +82,7 @@ public class Utils {
 		ByteArrayOutputStream buffer = new ByteArrayOutputStream();
 	
 		int nRead;
-		byte[] data = new byte[16*1024];
+		byte[] data = new byte[COPY_BUFFER];
 	
 		while ((nRead = is.read(data, 0, data.length)) != -1) {
 		  buffer.write(data, 0, nRead);
