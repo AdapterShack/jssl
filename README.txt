@@ -23,20 +23,32 @@ The following URL schemes are supported:
 
   ssl      opens an SSL socket for interaction
 
+The two "socket" schemes (ssl and tcp) are intended mainly for protocol-level debugging
+of HTTP(s) servers. The level of interactivity is rudimentary: each line typed is 
+sent to the server, each lined written by the server is echoed back.
+
+In particular, the "ssl" protcol does not make this an *SSH* client. SSH is an entirely
+separate protocol which is not at all supported by this tool. You could theoretically
+use "tcp" mode as a very dumb telnet client, if there were still any telnet systems online
+in <current year>.
+
 usage: java -jar [this-jar-file] [options] url
-Options
+
+Options:
+
     --alias <arg>           use alias from keystore
- -b,--binary                use i/o streams for socket mode, not
-                            reader/writer - theoretically making it 8-bit
-                            clean
+ -b,--binary                disables charset conversions and retrieves
+                            content from the server byte for byte
     --buffer <arg>          buffer size for binary mode (default 1024)
     --content-type <arg>    force content type
     --crlf                  in socket mode, perform outbound CRLF
                             translation
  -d,--data <arg>            data to be posted to server
     --download <arg>        print only headers, write only body to file
-                            (equivalent -b -i -n --skip-headers -o <arg>)
+                            (equivalent to -i -n -o for http, -b -n
+                            --skip-headers -o for socket)
  -f,--file <arg>            file to be posted to server
+ -g,--gzip                  request gzip content-encoding
  -H,--header <arg>          add custom HTTP header(s)
  -i,--include               include response headers in output
  -k,--insecure              ignore SSL validation errors
@@ -70,6 +82,9 @@ Posting from a file (this will guess "application/xml" from the file name):
 Download a large or binary file without having its contents spill onto the console:
 
 	java -jar jssl.jar http://www.example.com/images/foo.png --download abc.png
+	
+Note there is no need to add the -b flag as the binary nature of the content is detected
+from the content-type header.
 
 Turn on verbose Java SSL debugging (the real reason this tool exists):
 
@@ -90,6 +105,8 @@ Compose an entire HTTP request inline (backslash escapes are parsed):
 Compose an arbitrary HTTP request and download the result:
 
    java -jar jssl.jar ssl://www.example.com -d 'GET /images/foo.png HTTP/1.1\nHost: www.example.com\n\n' --download foo.png 
+
+There is no need for -b here either, because --download auto-enables it.
 
 Using a keystore continaing a client certificate:
 
