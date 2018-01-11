@@ -101,6 +101,8 @@ public class JSSLClient {
 
 
 	public void run (String urlString) throws Exception {
+		
+		checkSetup();
 
 		parseUrl(urlString);
 		
@@ -118,6 +120,22 @@ public class JSSLClient {
 			
 			doURL(urlString);
 		}
+		
+	}
+
+
+
+	private void checkSetup() {
+		
+		if(stdin == null) {
+			stdin = System.in;
+		}
+		
+		if(stdout == null) {
+			stdout = System.out;
+		}
+		
+		Log.setOut(stdout);
 		
 	}
 

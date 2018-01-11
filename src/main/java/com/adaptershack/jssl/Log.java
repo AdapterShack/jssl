@@ -10,6 +10,14 @@ public class Log {
 	
 	private static PrintStream stdout = System.out;
 	
+	public static PrintStream getOut() {
+		return stdout;
+	}
+
+	public static void setOut(PrintStream stdout) {
+		Log.stdout = stdout;
+	}
+
 	public static boolean isQuiet() {
 		return quiet;
 	}
@@ -21,6 +29,9 @@ public class Log {
 	
 	private static void println(String s) {
 		if(!quiet) {
+			if(stdout == null) {
+				throw new IllegalStateException("Logging not initalized");
+			}
 			stdout.println(s);
 		}
 	}
@@ -28,11 +39,15 @@ public class Log {
 	public static void log(String s, Object... args ) {
 		if(!quiet) {
 			try {
-				println("**** " + String.format(s,args));
+				println(prefix() + String.format(s,args));
 			} catch (IllegalFormatException e) {
-				println("**** " + s);
+				println(prefix() + s);
 			}
 		}
+	}
+
+	private static String prefix() {
+		return "**** ";
 	}
  	
 	public static void hr() {
