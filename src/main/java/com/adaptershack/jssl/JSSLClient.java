@@ -216,7 +216,7 @@ public class JSSLClient {
 
 		Authenticator.setDefault(new CustomAuthenticator());
 
-		log("executing URL: " + urlString);
+		log("executing URL: %s", urlString);
 		
 		HttpURLConnection connection = (HttpURLConnection)
 				new URL(urlString).openConnection();

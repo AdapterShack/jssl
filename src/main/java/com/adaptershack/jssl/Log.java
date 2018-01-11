@@ -2,6 +2,7 @@ package com.adaptershack.jssl;
 
 import java.io.PrintStream;
 import java.util.Arrays;
+import java.util.IllegalFormatException;
 
 public class Log {
 	
@@ -26,7 +27,11 @@ public class Log {
 	
 	public static void log(String s, Object... args ) {
 		if(!quiet) {
-			println("**** " + String.format(s,args));
+			try {
+				println("**** " + String.format(s,args));
+			} catch (IllegalFormatException e) {
+				println("**** " + s);
+			}
 		}
 	}
  	
