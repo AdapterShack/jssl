@@ -107,6 +107,8 @@ public class Utils {
 			return null;
 		}
 		
+		is = new ProgressInputStream( connection.getContentLength(), is);
+		
 		return "gzip".equals(connection.getContentEncoding()) ?
 				new CountingZipStream(is) : is;
 		

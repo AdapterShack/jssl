@@ -1,5 +1,8 @@
 package com.adaptershack.jssl;
 
+import java.io.File;
+import java.net.URI;
+
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.HelpFormatter;
@@ -39,6 +42,7 @@ public class Main  {
 		options.addOption("i","include", false, "include response headers in output");
 		options.addOption("H", "header", true, "add custom HTTP header(s)");
 		options.addOption("g","gzip", false, "request gzip content-encoding");
+		options.addOption("w","wget",false,"auto-download file with name taken from url");
 		
 		// options only for sockets
 		options.addOption(null,"crlf",false,"in socket mode, perform outbound CRLF translation");
@@ -90,6 +94,24 @@ public class Main  {
         
         String urlString = cmdLine.getArgList().get(0);
 
+        if(cmdLine.hasOption("wget")) {
+        	String fileName = null;
+        	
+    		URI u = new URI(urlString);
+    		String path = u.getPath();
+    		if(path != null && !path.isEmpty()) {
+    			fileName = new File(path).getName();
+    		}
+        		
+        	if(fileName == null || fileName.isEmpty()) {
+        		System.out.println("Couldn't guess download file name, use --download <file>");
+        		return;
+        	}
+        	client.setOutFileName(fileName);
+        	client.setPrintBody(false);
+        	client.setIncludeHeaders(true);
+        }
+        
         if(cmdLine.hasOption("download")) {
         	client.setPrintBody(false);
         	client.setIncludeHeaders(true);

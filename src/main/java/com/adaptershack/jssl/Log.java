@@ -70,4 +70,18 @@ public class Log {
 		log( s + Arrays.asList(things));
 	}
 	
+	public static void startProgress(String s) {
+		if(enabled()) {
+			stdout.print(s);
+			stdout.flush();
+		}
+	}
+	
+	public static void spin() {
+		//if(System.console() != null) {
+			stdout.print("|");
+			stdout.flush();
+		//}
+	}
+	
 }
