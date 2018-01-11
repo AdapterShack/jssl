@@ -28,6 +28,8 @@ public class Main  {
 		options.addOption("p", "ssl-protocol", true, "protocol to intialize SSLContext");
 		options.addOption(null,"alias",true,"use alias from keystore");
 		options.addOption(null,"keystore-type", true, "keystore type (default PKCS12)");
+		options.addOption("b","binary",false,"disables charset conversions and retrives "
+				+ "content from the server byte for byte");
 
 		// options only for HTTP(s)
 		options.addOption(null, "content-type", true, "force content type");
@@ -37,17 +39,14 @@ public class Main  {
 		options.addOption("i","include", false, "include response headers in output");
 		options.addOption("H", "header", true, "add custom HTTP header(s)");
 		options.addOption("g","gzip", false, "request gzip content-encoding");
-		options.addOption(null,"ignore-charset", false, "do not use charset from content-type");
 		
 		// options only for sockets
 		options.addOption(null,"crlf",false,"in socket mode, perform outbound CRLF translation");
-		options.addOption("b","binary",false,"use i/o streams for socket mode, not reader/writer - "
-				+ "theoretically making it 8-bit clean");
 		options.addOption(null,"buffer",true,"buffer size for binary mode (default 1024)");
 		options.addOption(null,"skip-headers",false,"in socket mode, omit headers from out-file");
 
 		options.addOption(null,"download",true,"print only headers, write only body to file "
-				+ "(equivalent -b -i -n --skip-headers -o <arg>)");
+				+ "(equivalent -i -n --skip-headers -o <arg>)");
 		
 		
         DefaultParser parser = new DefaultParser();
@@ -88,17 +87,22 @@ public class Main  {
         client.setBufsize( Integer.parseInt( cmdLine.getOptionValue("buffer","1024")));
         client.setSkipHeadersInOutfile(cmdLine.hasOption("skip-headers"));
         client.setGzip(cmdLine.hasOption("gzip"));
-        client.setUseCharset(!cmdLine.hasOption("ignore-charset"));
         
+        String urlString = cmdLine.getArgList().get(0);
+
         if(cmdLine.hasOption("download")) {
         	client.setPrintBody(false);
         	client.setIncludeHeaders(true);
-        	client.setBinary(true);
         	client.setOutFileName(cmdLine.getOptionValue("download"));
-        	client.setSkipHeadersInOutfile(true);
+        	
+        	if(client.isSocketUrl(urlString)) {
+        		client.setBinary(true);
+            	client.setSkipHeadersInOutfile(true);
+        	}
+        	
         }
         
-        client.run(cmdLine.getArgList().get(0));
+		client.run(urlString);
         
         
     }

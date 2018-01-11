@@ -84,7 +84,6 @@ public class JSSLClient {
 	private boolean skipHeaders;
 	
 	private boolean gzip;
-	private boolean useCharset;
 	
 	private String userInfo;
 	
@@ -282,7 +281,7 @@ public class JSSLClient {
 			}
 		}
 		
-		byte[] responseData = Utils.readAll(connection, useCharset);
+		byte[] responseData = Utils.readAll(connection, !binary);
 		
 		log("Read " + responseData.length + " bytes");
 
@@ -351,7 +350,7 @@ public class JSSLClient {
 			log("Creating TrustManager");
 			HttpsURLConnection.setDefaultHostnameVerifier(new TrustingHostnameVerifier());	
 			TrustManager[] tm = { new TrustingTrustManager() };
-			log("TrustManagers: ",tm);
+			logEach("TrustManagers: ",tm);
 			return tm;
 		}
 		
@@ -394,7 +393,7 @@ public class JSSLClient {
 
 			KeyManager[] keyManagers = kmf.getKeyManagers();
 			
-			log("KeyManagers: ",keyManagers);
+			logEach("KeyManagers: ",keyManagers);
 
 			if(alias != null) {
 				log("Using alias " + alias);
@@ -411,6 +410,9 @@ public class JSSLClient {
 	}
 
 
+	public boolean isSocketUrl(String u) {
+		return u.startsWith("ssl") || u.startsWith("tcp");
+	}
 
 	private void parseUrl(String urlString) throws URISyntaxException {
 		URI uri = new URI(urlString);
@@ -482,19 +484,6 @@ public class JSSLClient {
 	}
 	
 
-	
-	
-	// boring getters/setters after here
-	
-	public boolean isUseCharset() {
-		return useCharset;
-	}
-
-
-
-	public void setUseCharset(boolean useCharset) {
-		this.useCharset = useCharset;
-	}	
 	
 	public String getSslProtocol() {
 		return sslProtocol;

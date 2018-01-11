@@ -23,10 +23,19 @@ public class Utils {
 			String charset = getCharset(connection);
 			
 			if( is != null && useCharset && charset != null ) {
+
+				Log.log("Translating server charset %s to local %s",
+						charset,
+						System.getProperty("file.encoding"));
 				
 				return toByteArray(is, charset);
 			
 			}	if( is != null) {
+				
+				if(charset != null) {
+					Log.log("Downloading server charset %s unmodified", charset);
+				}
+				
 				return toByteArray(is);
 	
 			} else {

@@ -24,8 +24,10 @@ public class Log {
 		}
 	}
 	
-	public static void log(String s) {
-		println("**** " + s);
+	public static void log(String s, Object... args ) {
+		if(!quiet) {
+			println("**** " + String.format(s,args));
+		}
 	}
  	
 	public static void hr() {
@@ -38,7 +40,7 @@ public class Log {
 		hr();
 	}
 	
-	public static void log(String s, Object[] things) {
+	public static void logEach(String s, Object[] things) {
 		log( s + Arrays.asList(things));
 	}
 	
