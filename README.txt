@@ -1,7 +1,7 @@
 JSSL is a Java implementation of a HTTP, HTTPS, SSL, and TCP sockets client.
 
 Command-line options are intended to be reminscent of keytool if they deal with
-keystores, and similar as possible to cUrl otherwise. Obviously, not every option 
+keystores, and roughly similar to cUrl otherwise. Obviously, not every option 
 of either of those tools is being copied.
 
 Why, one may ask, is this needed? Multiple client software for these protocols
