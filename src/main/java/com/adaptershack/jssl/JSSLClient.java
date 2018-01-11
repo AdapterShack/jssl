@@ -1,25 +1,23 @@
 package com.adaptershack.jssl;
 
-import java.io.BufferedReader;
 import static com.adaptershack.jssl.HeaderAwareOutputStream.*;
+
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.PrintStream;
+import java.net.Authenticator;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
+import java.net.PasswordAuthentication;
 import java.net.Socket;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.UnknownHostException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.security.KeyStore;
 import java.util.List;
 import java.util.Map;
@@ -85,7 +83,24 @@ public class JSSLClient {
 	
 	private boolean skipHeaders;
 	
+	private boolean gzip;
+	private boolean useCharset;
 	
+	private String userInfo;
+	
+	
+	public boolean isGzip() {
+		return gzip;
+	}
+
+
+
+	public void setGzip(boolean gzip) {
+		this.gzip = gzip;
+	}
+
+
+
 	public void run (String urlString) throws Exception {
 
 		parseUrl(urlString);
@@ -137,21 +152,21 @@ public class JSSLClient {
 			banner("Connected to " + host + ":" + port);
 			
 			if(data != null) {
-				String unescaped = unescapeJavaString(data);
+				String unescaped = Utils.unescapeJavaString(data);
 				
 				if(crlf) {
-					unescaped = replaceCRLF(unescaped);
+					unescaped = Utils.replaceCRLF(unescaped);
 				}
 				
 				rawData = unescaped.getBytes();
 				
 				
 			} else if (dataFileName != null) {
-				rawData = Files.readAllBytes(Paths.get(dataFileName));
+				rawData = Utils.readAll(dataFileName);
 				
 				if(crlf) {
 					String stringData = new String(rawData);
-					rawData = replaceCRLF(stringData).getBytes();
+					rawData = Utils.replaceCRLF(stringData).getBytes();
 				}
 			}
 			
@@ -198,14 +213,9 @@ public class JSSLClient {
 
 
 
-	private String replaceCRLF(String unescaped) {
-		return unescaped.replaceAll("(?<!\r)\n", "\r\n");
-	}
-
-
-
 	private void doURL(String urlString) throws IOException, MalformedURLException, Exception {
 
+		Authenticator.setDefault(new CustomAuthenticator());
 		HttpURLConnection.setFollowRedirects(followRedirects);
 
 		log("executing URL: " + urlString);
@@ -217,6 +227,10 @@ public class JSSLClient {
 		
 		if(connection instanceof HttpsURLConnection) {
 			((HttpsURLConnection) connection).setSSLSocketFactory(socketFactory);
+		}
+		
+		if(gzip) {
+			connection.setRequestProperty("Accept-Encoding", "gzip");
 		}
 		
 		if(headers != null) {
@@ -237,7 +251,7 @@ public class JSSLClient {
 		byte[] postData = null;
 		
 		if( dataFileName != null ) {
-			postData = Files.readAllBytes(Paths.get(dataFileName));
+			postData = Utils.readAll(dataFileName);
 			if(contentType == null) {
 				contentType = HttpURLConnection.guessContentTypeFromName(dataFileName);
 			}
@@ -254,7 +268,7 @@ public class JSSLClient {
 						new ByteArrayInputStream(postData));
 			}
 			if(contentType == null) {
-				contentType = guessMore(postData);
+				contentType = Utils.guessMore(postData);
 			}
 			if(contentType != null) {
 				connection.setRequestProperty("content-type", contentType);
@@ -268,7 +282,7 @@ public class JSSLClient {
 			}
 		}
 		
-		byte[] responseData = readAll(connection);
+		byte[] responseData = Utils.readAll(connection, useCharset);
 		
 		log("Read " + responseData.length + " bytes");
 
@@ -303,56 +317,6 @@ public class JSSLClient {
 		}
 		stdout.flush();
 		
-	}
-
-
-
-	private byte[] readAll(HttpURLConnection connection) throws Exception {
-		try ( InputStream is = getStream(connection)) {
-			if( is != null) {
-				return toByteArray(is);
-			} else {
-				return new byte[0];
-			}
-		}
-	}
-
-
-
-	private InputStream getStream(HttpURLConnection connection) throws IOException {
-		if(connection.getResponseCode() == 200) {
-			return connection.getInputStream();
-		} else {
-			return connection.getErrorStream();
-		}
-	}
-
-
-
-	private byte[] toByteArray(InputStream is) throws IOException {
-		ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-
-		int nRead;
-		byte[] data = new byte[16384];
-
-		while ((nRead = is.read(data, 0, data.length)) != -1) {
-		  buffer.write(data, 0, nRead);
-		}
-
-		buffer.flush();
-
-		return buffer.toByteArray();		
-	}
-
-
-
-	private String guessMore(byte[] postData) {
-		
-		if(postData[0] == (byte) '{' || postData[0] == (byte) '[' ) {
-			return "application/json";
-		}
-		
-		return null;
 	}
 
 
@@ -400,8 +364,8 @@ public class JSSLClient {
 		
 		if(keystore != null) {
 
-			if(keypass == null && System.console() != null) {
-				keypass = System.console().readPassword("Key password: ");
+			if(keypass == null ) {
+				keypass = Utils.passwordPrompt("Key password: ",stdout,stdin);
 			}
 			
 			if(keypass == null) {
@@ -452,6 +416,8 @@ public class JSSLClient {
 		URI uri = new URI(urlString);
 		
 		String scheme = uri.getScheme();
+		
+		userInfo = uri.getUserInfo();
 
 		if( scheme.equalsIgnoreCase("https")) {
 			useSSL = true;
@@ -475,10 +441,60 @@ public class JSSLClient {
 		}
 	}
 	
+	private class CustomAuthenticator extends Authenticator {
+
+		@Override
+		protected PasswordAuthentication getPasswordAuthentication() {
+
+			Log.banner("Password authentication required: " 
+			  + this.getRequestingPrompt());
+			
+			String user = null;
+			char[] password = null;
+			
+			if(userInfo != null ) {
+				
+				if(userInfo.contains(":")) {
+					String[] parts = userInfo.split(":",2);
+					user = parts[0];
+					password = parts[1].toCharArray();
+				} else {
+					user = userInfo;
+				}
+			}
+
+			if( user == null ) {
+				user = Utils.prompt("User: ",stdout,stdin);
+			}
+			if( password == null ) {
+				password = Utils.passwordPrompt("Password: ",stdout,stdin);
+			}
+			
+			
+			if(user != null && password != null) {
+				return new PasswordAuthentication(user,password);
+			} else {
+				return null;
+			}
+		}
+
+		
+	}
+	
+
 	
 	
 	// boring getters/setters after here
 	
+	public boolean isUseCharset() {
+		return useCharset;
+	}
+
+
+
+	public void setUseCharset(boolean useCharset) {
+		this.useCharset = useCharset;
+	}	
 	
 	public String getSslProtocol() {
 		return sslProtocol;
@@ -655,80 +671,7 @@ public class JSSLClient {
 	}
 	
 	
-    private String unescapeJavaString(String st) {
-
-        StringBuilder sb = new StringBuilder(st.length());
-
-        for (int i = 0; i < st.length(); i++) {
-            char ch = st.charAt(i);
-            if (ch == '\\') {
-                char nextChar = (i == st.length() - 1) ? '\\' : st
-                        .charAt(i + 1);
-                // Octal escape?
-                if (nextChar >= '0' && nextChar <= '7') {
-                    String code = "" + nextChar;
-                    i++;
-                    if ((i < st.length() - 1) && st.charAt(i + 1) >= '0'
-                            && st.charAt(i + 1) <= '7') {
-                        code += st.charAt(i + 1);
-                        i++;
-                        if ((i < st.length() - 1) && st.charAt(i + 1) >= '0'
-                                && st.charAt(i + 1) <= '7') {
-                            code += st.charAt(i + 1);
-                            i++;
-                        }
-                    }
-                    sb.append((char) Integer.parseInt(code, 8));
-                    continue;
-                }
-                switch (nextChar) {
-                case '\\':
-                    ch = '\\';
-                    break;
-                case 'b':
-                    ch = '\b';
-                    break;
-                case 'f':
-                    ch = '\f';
-                    break;
-                case 'n':
-                    ch = '\n';
-                    break;
-                case 'r':
-                    ch = '\r';
-                    break;
-                case 't':
-                    ch = '\t';
-                    break;
-                case '\"':
-                    ch = '\"';
-                    break;
-                case '\'':
-                    ch = '\'';
-                    break;
-                // Hex Unicode: u????
-                case 'u':
-                    if (i >= st.length() - 5) {
-                        ch = 'u';
-                        break;
-                    }
-                    int code = Integer.parseInt(
-                            "" + st.charAt(i + 2) + st.charAt(i + 3)
-                                    + st.charAt(i + 4) + st.charAt(i + 5), 16);
-                    sb.append(Character.toChars(code));
-                    i += 5;
-                    continue;
-                }
-                i++;
-            }
-            sb.append(ch);
-        }
-        return sb.toString();
-    }
-
-
-
-	public boolean isPrintBody() {
+    public boolean isPrintBody() {
 		return printBody;
 	}
 

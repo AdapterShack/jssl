@@ -3,7 +3,6 @@ package com.adaptershack.jssl;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.HelpFormatter;
-import org.apache.commons.cli.OptionGroup;
 import org.apache.commons.cli.Options;
 
 /**
@@ -36,7 +35,9 @@ public class Main  {
 		options.addOption("L", "location", false, "follow redirect");
 		options.addOption(null, "no-cache", false, "disallow caching");
 		options.addOption("i","include", false, "include response headers in output");
-		options.addOption("H", "header", true, "add custom HTTP header(s)");			
+		options.addOption("H", "header", true, "add custom HTTP header(s)");
+		options.addOption("g","gzip", false, "request gzip content-encoding");
+		options.addOption(null,"ignore-charset", false, "do not use charset from content-type");
 		
 		// options only for sockets
 		options.addOption(null,"crlf",false,"in socket mode, perform outbound CRLF translation");
@@ -86,6 +87,8 @@ public class Main  {
         client.setBinary(cmdLine.hasOption("binary"));
         client.setBufsize( Integer.parseInt( cmdLine.getOptionValue("buffer","1024")));
         client.setSkipHeadersInOutfile(cmdLine.hasOption("skip-headers"));
+        client.setGzip(cmdLine.hasOption("gzip"));
+        client.setUseCharset(!cmdLine.hasOption("ignore-charset"));
         
         if(cmdLine.hasOption("download")) {
         	client.setPrintBody(false);
