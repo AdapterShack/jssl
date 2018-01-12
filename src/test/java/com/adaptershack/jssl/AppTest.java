@@ -14,6 +14,10 @@ import java.io.PrintStream;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.security.KeyStore;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.UUID;
 
 import javax.net.ssl.SSLHandshakeException;
 
@@ -73,6 +77,81 @@ public class AppTest
 		assumeAndRun("https://www.example.com","-i","-n");
 		assertHeadersOnly();
 	}
+	
+	@Test
+	public void testSavePEM() throws Exception {
+		String temp = File.createTempFile("junit", "tmp").getAbsolutePath();
+		assumeAndRun("https://www.example.com","-i",
+				"--save-certs", temp, "--save-type","pem");
+		assertGoodHtmlWithHeaders();
+		String content = new String(
+			Files.readAllBytes(Paths.get(temp)));
+		assertThat(content,containsString("BEGIN CERTIFICATE"));
+		assertThat(content,not(containsString("Certificate")));
+		Files.deleteIfExists(Paths.get(temp));
+	}
+	
+	@Test
+	public void testSavePEMText() throws Exception {
+		String temp = File.createTempFile("junit", "tmp").getAbsolutePath();
+		assumeAndRun("https://www.example.com","-i",
+				"--save-certs", temp, "--save-type","text");
+		assertGoodHtmlWithHeaders();
+		String content = new String(
+			Files.readAllBytes(Paths.get(temp)));
+		assertThat(content,containsString("BEGIN CERTIFICATE"));
+		assertThat(content,containsString("Certificate"));
+		Files.deleteIfExists(Paths.get(temp));
+	}
+
+	@Test
+	public void testSavePKCS12() throws Exception {
+		String randpass = UUID.randomUUID().toString();
+		String temp = File.createTempFile("junit", "tmp").getAbsolutePath();
+		Files.deleteIfExists(Paths.get(temp));
+
+		assumeAndRun("https://www.example.com","-i",
+				"--save-certs", temp, "--save-type","pkcs12",
+				"--save-pass",randpass);
+		
+		assertGoodHtmlWithHeaders();
+		byte[] content = Files.readAllBytes(Paths.get(temp));
+		
+		KeyStore ks = KeyStore.getInstance("pkcs12");
+		ks.load(new ByteArrayInputStream(content), randpass.toCharArray());
+		
+		for(String alias : Collections.list(ks.aliases())) {
+			assertThat(stringContent().toLowerCase(), containsString("alias [" + alias + "]"));
+		}
+		
+		Files.deleteIfExists(Paths.get(temp));
+	}
+	
+	@Test
+	public void testSavePKCS12OneCert() throws Exception {
+		String randpass = UUID.randomUUID().toString();
+		String temp = File.createTempFile("junit", "tmp").getAbsolutePath();
+		Files.deleteIfExists(Paths.get(temp));
+
+		assumeAndRun("https://www.example.com","-i",
+				"--save-certs", temp, "--save-type","pkcs12",
+				"--save-pass",randpass,"--save-chain","1");
+		
+		assertGoodHtmlWithHeaders();
+		byte[] content = Files.readAllBytes(Paths.get(temp));
+		
+		KeyStore ks = KeyStore.getInstance("pkcs12");
+		ks.load(new ByteArrayInputStream(content), randpass.toCharArray());
+		
+		ArrayList<String> list = Collections.list(ks.aliases());
+		assertThat( list.size(), is(1));
+		for(String alias : list) {
+			assertThat(stringContent().toLowerCase(), containsString("alias [" + alias + "]"));
+		}
+		
+		Files.deleteIfExists(Paths.get(temp));
+	}
+	
 	
 	@Test
 	public void testOutfile() throws Exception {
@@ -237,6 +316,53 @@ public class AppTest
 		}
 	}
 	
+	@Test
+	public void testPost() throws Exception {
+		
+		final ByteArrayOutputStream posted = new ByteArrayOutputStream();
+		
+		final String[] method = new String[1];
+		
+		com.sun.net.httpserver.HttpServer server
+		= com.sun.net.httpserver.HttpServer.create(
+				new InetSocketAddress(18089), 0);
+
+		server.createContext("/login",
+			new HttpHandler() {
+	
+				@Override
+				public void handle(HttpExchange exchange) throws IOException {
+					//byte[] bytes = unicodeContent.getBytes("UTF-8");
+					posted.write(Utils.toByteArray(exchange.getRequestBody()));
+					exchange.getResponseHeaders().add("Content-Type","text/plain");
+					method[0] = exchange.getRequestMethod();
+					byte[] bytes = "Hello, world".getBytes();
+					exchange.sendResponseHeaders(200, bytes.length);
+					OutputStream responseBody = exchange.getResponseBody();
+					responseBody.write(bytes);
+					responseBody.flush();
+					responseBody.close();
+				}
+			
+		});
+		
+		server.start();
+
+		try {
+			String json = "{'user':'abc','pass','123'}";
+			
+			assumeAndRun("http://localhost:18089/login","-i","-n","-d",json);
+			assertHeadersOnly();
+			String content = new String(posted.toByteArray());
+
+			assertThat( method[0], is("POST"));
+			assertThat( content.toLowerCase(), is(json));
+			
+		} finally {
+			server.stop(1);
+		}
+	}
+
 	
 	// using this for now until i figure out why wiremock doesn't work
 	public com.sun.net.httpserver.HttpServer makeServer(final byte[] bytes, final String contentType)
