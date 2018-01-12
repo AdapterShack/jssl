@@ -8,80 +8,195 @@ import static org.junit.Assume.assumeTrue;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
-import java.net.InetSocketAddress;
+import java.io.UnsupportedEncodingException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.KeyStore;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.UUID;
+import java.util.zip.GZIPOutputStream;
 
 import javax.net.ssl.SSLHandshakeException;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpHandler;
+import com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder;
+import com.github.tomakehurst.wiremock.junit.WireMockRule;
+import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
+
+import static com.github.tomakehurst.wiremock.client.WireMock.*;
 
 import static org.hamcrest.CoreMatchers.*;
 
 /**
  * Unit test for simple App.
+ * 
+ * This class performs actual HTTP and HTTPS requests using
+ * WireMock to create an HTTP server. All tests will skip if
+ * it is detected that the server isn't listening (such as 
+ * might happen if the OS won't allow it to run).
+ * 
+ * A few tests use real internet connectivity to external
+ * servers. These will also skip, if there is no internet
+ * access available.
+ * 
  */
-@SuppressWarnings("restriction")
 public class AppTest 
 {
 	static {
 		System.setProperty("no-exit", "true");
+		//System.setProperty("javax.net.debug", "all");
 	}
+	
+	@Rule
+	public WireMockRule wireMockRule = new WireMockRule(
+	  WireMockConfiguration.wireMockConfig()
+	  .port(9090)
+	  .httpsPort(9091)
+	);
+
+	String unicodeJunk = "\u00c4\u00df\u00e7\u00f0";		
+	String json = "{'user':'abc','pass','123'}";
+	String html = "<html><head><title>Hello</title></head><body>World</body></html>";
+
+	ResponseDefinitionBuilder withBody = aResponse()
+			.withHeader("Content-type", "text/html; charset=UTF-8")
+			.withBody(html);
+
+	@Before
+	public void config() throws UnsupportedEncodingException {
+		
+		wireMockRule.stubFor(
+				get(urlPathEqualTo("/"))
+				.willReturn(withBody));
+
+		wireMockRule.stubFor(
+				head(urlPathEqualTo("/"))
+				.willReturn(
+					aResponse()
+						.withStatus(200)
+						.withHeader("Content-Length", "666")
+						.withHeader("Content-Encoding", "gzip")
+						.withHeader("etag", "12345678")
+						));
+		
+		wireMockRule.stubFor(
+				get(urlPathEqualTo("/index.html"))
+				.willReturn(withBody));
+
+		wireMockRule.stubFor(
+				get(urlPathEqualTo("/redir"))
+				.willReturn(
+					aResponse()
+					.withStatus(302)
+					.withHeader("Location", "/index.html")));
+		
+		wireMockRule.stubFor(
+				get(urlPathEqualTo("/i18n/utf-8"))
+				.willReturn(
+					aResponse()
+					.withStatus(200)
+					.withHeader("Content-Type", "text/plain; charset=UTF-8")
+					.withBody( unicodeJunk.getBytes("UTF-8") )
+					));
+
+		wireMockRule.stubFor(
+				get(urlPathEqualTo("/i18n/utf-8-no-cs"))
+				.willReturn(
+					aResponse()
+					.withStatus(200)
+					.withHeader("Content-Type", "text/plain")
+					.withBody( unicodeJunk.getBytes("UTF-8") )
+					));
+		
+		wireMockRule.stubFor(
+				get(urlPathEqualTo("/i18n/iso-8859-1"))
+				.willReturn(
+					aResponse()
+					.withStatus(200)
+					.withHeader("Content-Type", "text/plain; charset=iso-8859-1")
+					.withBody( unicodeJunk.getBytes("iso-8859-1") )
+					));
+		
+	}
+	
+	
 	
 	@Test
 	public void testSimpleHttp() throws Exception {
-		testHTML("http://www.example.com");
+		testHTML("http://localhost:9090");
 	}
 
 	@Test
 	public void testSimpleHttps() throws Exception {
-		testHTML("https://www.example.com");
+		testHTML("https://localhost:9091","-k");
+	}
+
+
+	@Rule
+	public WireMockRule wireMockRuleClientCerts = new WireMockRule(
+	  WireMockConfiguration.wireMockConfig()
+	  .httpsPort(9092)
+	  .needClientAuth(true)
+	  .trustStorePath("testfiles/server-cacerts")
+	  .trustStorePassword("changeit")
+	);
+	
+	
+	@Test
+	public void testClientCerts() throws Exception {
+
+		wireMockRuleClientCerts.stubFor(
+				get(urlPathEqualTo("/"))
+				.willReturn(withBody));
+		
+		System.out.println(System.getProperty("user.dir"));
+		
+		testHTML("https://localhost:9092","-k","--keystore","client.pfx","--keypass","changeit");
 	}
 	
+	
 
-	//@Test
+	@Test
 	public void testFollowRedirectShort() throws Exception {
-		testHTML("http://www.adaptershack.com", "-L");
+		testHTML("http://localhost:9090/redir","-L");
 	}
 
-	//@Test
+	@Test
 	public void testFollowRedirectLong() throws Exception {
-		testHTML("http://www.adaptershack.com", "--location");
+		testHTML("http://localhost:9090/redir", "--location");
 	}
 
 	@Test
 	public void testHeaders() throws Exception {
-		assumeAndRun("https://www.example.com","-i");
+		assumeAndRun("http://localhost:9090","-i");
 		assertGoodHtmlWithHeaders();
 	}
 	@Test
 	public void testHeadersLong() throws Exception {
-		assumeAndRun("https://www.example.com","--include");
+		assumeAndRun("http://localhost:9090","--include");
 		assertGoodHtmlWithHeaders();
 	}
 
 	@Test
 	public void testHeadersOnly() throws Exception {
-		assumeAndRun("https://www.example.com","-i","-n");
+		assumeAndRun("http://localhost:9090","-i","-n");
 		assertHeadersOnly();
 	}
 	
+	// uses a real domain
 	@Test
 	public void testSavePEM() throws Exception {
 		String temp = File.createTempFile("junit", "tmp").getAbsolutePath();
-		assumeAndRun("https://www.example.com","-i",
+		assumeAndRun("https://localhost:9091","-k","-i",
 				"--save-certs", temp, "--save-type","pem");
 		assertGoodHtmlWithHeaders();
 		String content = new String(
@@ -94,7 +209,7 @@ public class AppTest
 	@Test
 	public void testSavePEMText() throws Exception {
 		String temp = File.createTempFile("junit", "tmp").getAbsolutePath();
-		assumeAndRun("https://www.example.com","-i",
+		assumeAndRun("https://localhost:9091","-k","-i",
 				"--save-certs", temp, "--save-type","text");
 		assertGoodHtmlWithHeaders();
 		String content = new String(
@@ -110,7 +225,7 @@ public class AppTest
 		String temp = File.createTempFile("junit", "tmp").getAbsolutePath();
 		Files.deleteIfExists(Paths.get(temp));
 
-		assumeAndRun("https://www.example.com","-i",
+		assumeAndRun("https://localhost:9091","-k","-i",
 				"--save-certs", temp, "--save-type","pkcs12",
 				"--save-pass",randpass);
 		
@@ -127,17 +242,18 @@ public class AppTest
 		Files.deleteIfExists(Paths.get(temp));
 	}
 	
+	// uses a real website for the chain of certs
 	@Test
 	public void testSavePKCS12OneCert() throws Exception {
 		String randpass = UUID.randomUUID().toString();
 		String temp = File.createTempFile("junit", "tmp").getAbsolutePath();
 		Files.deleteIfExists(Paths.get(temp));
 
-		assumeAndRun("https://www.example.com","-i",
+		assumeAndRun("https://www.example.com","-i","-n",
 				"--save-certs", temp, "--save-type","pkcs12",
 				"--save-pass",randpass,"--save-chain","1");
 		
-		assertGoodHtmlWithHeaders();
+		assertHeadersOnly();
 		byte[] content = Files.readAllBytes(Paths.get(temp));
 		
 		KeyStore ks = KeyStore.getInstance("pkcs12");
@@ -156,11 +272,11 @@ public class AppTest
 	@Test
 	public void testOutfile() throws Exception {
 		String temp = File.createTempFile("junit", "tmp").getAbsolutePath();
-		assumeAndRun("https://www.example.com","-i","-o", temp);
+		assumeAndRun("http://localhost:9090","-i","-o", temp);
 		assertGoodHtmlWithHeaders();
 		String content = new String(
 			Files.readAllBytes(Paths.get(temp)));
-		assertThat(content,containsString("<html"));
+		assertThat(content,containsString(html));
 		assertThat(content,not( startsWith("HTTP/1.1 200 OK")));
 		Files.deleteIfExists(Paths.get(temp));
 	}
@@ -168,11 +284,11 @@ public class AppTest
 	@Test
 	public void testOutfileOnly() throws Exception {
 		String temp = File.createTempFile("junit", "tmp").getAbsolutePath();
-		assumeAndRun("https://www.example.com","-i","-n","-o", temp);
+		assumeAndRun("http://localhost:9090","-i","-n","-o", temp);
 		assertHeadersOnly();
 		String content = new String(
 			Files.readAllBytes(Paths.get(temp)));
-		assertThat(content,containsString("<html"));
+		assertThat(content,containsString(html));
 		assertThat(content,not( startsWith("HTTP/1.1 200 OK")));
 		Files.deleteIfExists(Paths.get(temp));
 	}
@@ -181,11 +297,11 @@ public class AppTest
 	@Test
 	public void testDownload() throws Exception {
 		String temp = File.createTempFile("junit", "tmp").getAbsolutePath();
-		assumeAndRun("https://www.example.com","--download", temp);
+		assumeAndRun("http://localhost:9090","--download", temp);
 		assertHeadersOnly();
 		String content = new String(
 			Files.readAllBytes(Paths.get(temp)));
-		assertThat(content,containsString("<html"));
+		assertThat(content,containsString(html));
 		assertThat(content,not( startsWith("HTTP/1.1 200 OK")));
 		Files.deleteIfExists(Paths.get(temp));
 	}
@@ -194,65 +310,46 @@ public class AppTest
 	@Test
 	public void testCharsetTransation() throws Exception {
 		
-		final String unicodeContent = "\u00c4\u00df\u00e7\u00f0";
+		String saveCS = System.getProperty("file.encoding");
+		System.setProperty("file.encoding", "iso-8859-1");
 
-		com.sun.net.httpserver.HttpServer server = makeServer(unicodeContent.getBytes("UTF-8"), "text/plain; charset=UTF-8");
-		
-		server.start();
-
-		try {
-			String saveCS = System.getProperty("file.encoding");
-			System.setProperty("file.encoding", "iso-8859-1");
-	
-			String temp = File.createTempFile("junit", "tmp").getAbsolutePath();
-			assumeAndRun("http://localhost:18089/index.html","-i","-n","-o", temp);
-			assertHeadersOnly();
-			assumeThat( stringContent().toLowerCase(), containsString("content-type: text/plain; charset=utf-8"));
-			assertThat(stringContent().toLowerCase(), containsString("translating server charset utf-8 to local iso-8859-1"));
-			byte[] allBytes = Files.readAllBytes(Paths.get(temp));
-			String content = new String(
-				allBytes, "iso-8859-1");
-			assertThat(content,not( startsWith("HTTP/1.1 200 OK")));
-			assertThat(content,containsString(unicodeContent));
-			Files.deleteIfExists(Paths.get(temp));
-			System.setProperty("file.encoding", saveCS);
-		} finally {
-			server.stop(1);
-		}
+		String temp = File.createTempFile("junit", "tmp").getAbsolutePath();
+		assumeAndRun("http://localhost:9090/i18n/utf-8","-i","-n","-o", temp);
+		assertHeadersOnly();
+		assertThat( stringContent().toLowerCase(), containsString("content-type: text/plain; charset=utf-8"));
+		assertThat(stringContent().toLowerCase(), containsString("translating server charset utf-8 to local iso-8859-1"));
+		byte[] allBytes = Files.readAllBytes(Paths.get(temp));
+		String content = new String(
+			allBytes, "iso-8859-1");
+		assertThat(content,not( startsWith("HTTP/1.1 200 OK")));
+		assertThat(content,containsString(unicodeJunk));
+		Files.deleteIfExists(Paths.get(temp));
+		System.setProperty("file.encoding", saveCS);
 	}
 
 	@Test
 	public void testCharsetTransationReverse() throws Exception {
 		
-		final String unicodeContent = "\u00c4\u00df\u00e7\u00f0";
-		int utfLength = unicodeContent.getBytes("UTF-8").length;
-		int isoLength = unicodeContent.getBytes("iso-8859-1").length;
+		int utfLength = unicodeJunk.getBytes("UTF-8").length;
+		int isoLength = unicodeJunk.getBytes("iso-8859-1").length;
 		
-		com.sun.net.httpserver.HttpServer server = makeServer(unicodeContent.getBytes("iso-8859-1"), "text/plain; charset=iso-8859-1");
-		
-		server.start();
+		String saveCS = System.getProperty("file.encoding");
+		System.setProperty("file.encoding", "UTF-8");
 
-		try {
-			String saveCS = System.getProperty("file.encoding");
-			System.setProperty("file.encoding", "UTF-8");
-	
-			String temp = File.createTempFile("junit", "tmp").getAbsolutePath();
-			assumeAndRun("http://localhost:18089/index.html","-i","-n","-o", temp);
-			assertHeadersOnly();
-			assumeThat( stringContent().toLowerCase(), containsString("content-type: text/plain; charset=iso-8859-1"));
-			assertThat(stringContent().toLowerCase(), containsString("translating server charset iso-8859-1 to local utf-8"));
-			assertThat(stringContent().toLowerCase(), containsString("read "+isoLength+" bytes"));
-			assertThat(stringContent().toLowerCase(), containsString("wrote "+utfLength+" bytes"));
-			byte[] allBytes = Files.readAllBytes(Paths.get(temp));
-			String content = new String(
-				allBytes, "UTF-8");
-			assertThat(content,not( startsWith("HTTP/1.1 200 OK")));
-			assertThat(content,containsString(unicodeContent));
-			Files.deleteIfExists(Paths.get(temp));
-			System.setProperty("file.encoding", saveCS);
-		} finally {
-			server.stop(1);
-		}
+		String temp = File.createTempFile("junit", "tmp").getAbsolutePath();
+		assumeAndRun("http://localhost:9090/i18n/iso-8859-1","-i","-n","-o", temp);
+		assertHeadersOnly();
+		assumeThat( stringContent().toLowerCase(), containsString("content-type: text/plain; charset=iso-8859-1"));
+		assertThat(stringContent().toLowerCase(), containsString("translating server charset iso-8859-1 to local utf-8"));
+		assertThat(stringContent().toLowerCase(), containsString("read "+isoLength+" bytes"));
+		assertThat(stringContent().toLowerCase(), containsString("wrote "+utfLength+" bytes"));
+		byte[] allBytes = Files.readAllBytes(Paths.get(temp));
+		String content = new String(
+			allBytes, "UTF-8");
+		assertThat(content,not( startsWith("HTTP/1.1 200 OK")));
+		assertThat(content,containsString(unicodeJunk));
+		Files.deleteIfExists(Paths.get(temp));
+		System.setProperty("file.encoding", saveCS);
 	}
 	
 	
@@ -260,170 +357,174 @@ public class AppTest
 	@Test
 	public void testBinary() throws Exception {
 		
-		final String unicodeContent = "\u00c4\u00df\u00e7\u00f0";
-		com.sun.net.httpserver.HttpServer server = makeServer(unicodeContent.getBytes("UTF-8"), "text/plain; charset=UTF-8");
-		
-		server.start();
+		String saveCS = System.getProperty("file.encoding");
+		System.setProperty("file.encoding", "iso-8859-1");
 
-		try {
-			String saveCS = System.getProperty("file.encoding");
-			System.setProperty("file.encoding", "iso-8859-1");
-	
-			String temp = File.createTempFile("junit", "tmp").getAbsolutePath();
-			assumeAndRun("http://localhost:18089/index.html","-i","-n","-b","-o", temp);
-			assertHeadersOnly();
-			assumeThat( stringContent().toLowerCase(), containsString("content-type: text/plain; charset=utf-8"));
-			assertThat(stringContent().toLowerCase(), not( containsString("translating server charset")));
-			byte[] allBytes = Files.readAllBytes(Paths.get(temp));
-			String content = new String(
-				allBytes, "UTF-8");
-			assertThat(content,not( startsWith("HTTP/1.1 200 OK")));
-			assertThat(content,containsString(unicodeContent));
-			Files.deleteIfExists(Paths.get(temp));
-			System.setProperty("file.encoding", saveCS);
-		} finally {
-			server.stop(1);
-		}
+		String temp = File.createTempFile("junit", "tmp").getAbsolutePath();
+		assumeAndRun("http://localhost:9090/i18n/utf-8","-i","-n","-b","-o", temp);
+		assertHeadersOnly();
+		assumeThat( stringContent().toLowerCase(), containsString("content-type: text/plain; charset=utf-8"));
+		assertThat(stringContent().toLowerCase(), not( containsString("translating server charset")));
+		byte[] allBytes = Files.readAllBytes(Paths.get(temp));
+		String content = new String(
+			allBytes, "UTF-8");
+		assertThat(content,not( startsWith("HTTP/1.1 200 OK")));
+		assertThat(content,containsString(unicodeJunk));
+		Files.deleteIfExists(Paths.get(temp));
+		System.setProperty("file.encoding", saveCS);
 	}
 
 	@Test
 	public void testBinaryByDefault() throws Exception {
 		
-		final String unicodeContent = "\u00c4\u00df\u00e7\u00f0";
-		// note lack of charset in this content type
-		com.sun.net.httpserver.HttpServer server = makeServer(unicodeContent.getBytes("UTF-8"), "text/plain");
-		
-		server.start();
+		String saveCS = System.getProperty("file.encoding");
+		System.setProperty("file.encoding", "iso-8859-1");
 
-		try {
-			String saveCS = System.getProperty("file.encoding");
-			System.setProperty("file.encoding", "iso-8859-1");
-	
-			String temp = File.createTempFile("junit", "tmp").getAbsolutePath();
-			assumeAndRun("http://localhost:18089/index.html","-i","-n","-b","-o", temp);
-			assertHeadersOnly();
-			assumeThat( stringContent().toLowerCase(), containsString("content-type: text/plain"));
-			assertThat(stringContent().toLowerCase(), not( containsString("translating server charset")));
-			byte[] allBytes = Files.readAllBytes(Paths.get(temp));
-			String content = new String(
-				allBytes, "UTF-8");
-			assertThat(content,not( startsWith("HTTP/1.1 200 OK")));
-			assertThat(content,containsString(unicodeContent));
-			Files.deleteIfExists(Paths.get(temp));
-			System.setProperty("file.encoding", saveCS);
-		} finally {
-			server.stop(1);
-		}
+		String temp = File.createTempFile("junit", "tmp").getAbsolutePath();
+		assumeAndRun("http://localhost:9090/i18n/utf-8-no-cs","-i","-n","-b","-o", temp);
+		assertHeadersOnly();
+		assumeThat( stringContent().toLowerCase(), containsString("content-type: text/plain"));
+		assertThat(stringContent().toLowerCase(), not( containsString("translating server charset")));
+		byte[] allBytes = Files.readAllBytes(Paths.get(temp));
+		String content = new String(
+			allBytes, "UTF-8");
+		assertThat(content,not( startsWith("HTTP/1.1 200 OK")));
+		assertThat(content,containsString(unicodeJunk));
+		Files.deleteIfExists(Paths.get(temp));
+		System.setProperty("file.encoding", saveCS);
 	}
+
+	
+	
 	
 	@Test
 	public void testPost() throws Exception {
-		
-		final ByteArrayOutputStream posted = new ByteArrayOutputStream();
-		
-		final String[] method = new String[1];
-		
-		com.sun.net.httpserver.HttpServer server
-		= com.sun.net.httpserver.HttpServer.create(
-				new InetSocketAddress(18089), 0);
 
-		server.createContext("/login",
-			new HttpHandler() {
-	
-				@Override
-				public void handle(HttpExchange exchange) throws IOException {
-					//byte[] bytes = unicodeContent.getBytes("UTF-8");
-					posted.write(Utils.toByteArray(exchange.getRequestBody()));
-					exchange.getResponseHeaders().add("Content-Type","text/plain");
-					method[0] = exchange.getRequestMethod();
-					byte[] bytes = "Hello, world".getBytes();
-					exchange.sendResponseHeaders(200, bytes.length);
-					OutputStream responseBody = exchange.getResponseBody();
-					responseBody.write(bytes);
-					responseBody.flush();
-					responseBody.close();
-				}
-			
-		});
-		
-		server.start();
-
-		try {
-			String json = "{'user':'abc','pass','123'}";
-			
-			assumeAndRun("http://localhost:18089/login","-i","-n","-d",json);
-			assertHeadersOnly();
-			String content = new String(posted.toByteArray());
-
-			assertThat( method[0], is("POST"));
-			assertThat( content.toLowerCase(), is(json));
-			
-		} finally {
-			server.stop(1);
+		String temp = File.createTempFile("junit", "tmp").getAbsolutePath();
+		try(FileOutputStream f = new FileOutputStream(temp)) {
+			f.write(json.getBytes());
 		}
+		
+		wireMockRule.stubFor(
+				post(urlPathEqualTo("/login"))
+				.withHeader("Content-type", equalTo("application/json"))
+				.withRequestBody( equalTo(json))
+			    .willReturn(aResponse()
+			            .withHeader("Content-Type", "application/json")
+			            .withStatus(200)
+			            .withBody("{'success':true}")));
+
+		assumeAndRun("http://localhost:9090/login","-i","-d",json);
+		assertThat( stringContent(), containsString("HTTP/1.1 200 OK"));
+		assertThat( stringContent(), containsString("Content-Type: application/json"));
+		assertThat( stringContent(), containsString("{'success':true}"));
+		Files.deleteIfExists(Paths.get(temp));
 	}
 
-	
-	// using this for now until i figure out why wiremock doesn't work
-	public com.sun.net.httpserver.HttpServer makeServer(final byte[] bytes, final String contentType)
-			throws IOException {
-		com.sun.net.httpserver.HttpServer server
-			= com.sun.net.httpserver.HttpServer.create(
-					new InetSocketAddress(18089), 0);
-
-		server.createContext("/index.html",
-			new HttpHandler() {
-
-				@Override
-				public void handle(HttpExchange exchange) throws IOException {
-					exchange.getResponseHeaders().add("Content-Type",contentType);
-					//byte[] bytes = unicodeContent.getBytes("UTF-8");
-					exchange.sendResponseHeaders(200, bytes.length);
-					OutputStream responseBody = exchange.getResponseBody();
-					responseBody.write(bytes);
-					responseBody.flush();
-					responseBody.close();
-				}
-			
-		});
-		return server;
+	@Test
+	public void testContentType() throws Exception {
+		
+		wireMockRule.stubFor(
+				post(urlPathEqualTo("/login"))
+				.withHeader("Content-type", equalTo("text/json"))
+				.withRequestBody( equalTo(json))
+			    .willReturn(aResponse()
+			            .withHeader("Content-Type", "application/json")
+			            .withStatus(200)
+			            .withBody("{'success':true}")));
+		
+		
+		
+		assumeAndRun("http://localhost:9090/login","-i","-d",json,
+				"--content-type", "text/json");
+		
+		assertThat( stringContent(), containsString("HTTP/1.1 200 OK"));
+		assertThat( stringContent(), containsString("Content-Type: application/json"));
+		assertThat( stringContent(), containsString("{'success':true}"));
+		
 	}
 
+	@Test
+	public void testPostFromFile() throws Exception {
+		wireMockRule.stubFor(
+				post(urlPathEqualTo("/login"))
+				.withHeader("Content-type", equalTo("application/json"))
+				.withRequestBody( equalTo(json))
+			    .willReturn(aResponse()
+			            .withHeader("Content-Type", "application/json")
+			            .withStatus(200)
+			            .withBody("{'success':true}")));
+
+		assumeAndRun("http://localhost:9090/login","-i","-d",json);
+		assertThat( stringContent(), containsString("HTTP/1.1 200 OK"));
+		assertThat( stringContent(), containsString("Content-Type: application/json"));
+		assertThat( stringContent(), containsString("{'success':true}"));
+	}
 	
 	
 	@Test
 	public void testWget() throws Exception {
-		assumeTrue( !Files.exists(Paths.get("index.html"))); 
-		assumeAndRun("https://www.example.com/index.html","--wget");
+		
+		String temp = "delete_this_" + UUID.randomUUID().hashCode() + ".html";
+
+		String serverpath = "/files/to/download/"+temp;
+
+		wireMockRule.stubFor(
+				get(urlPathEqualTo(serverpath))
+				.willReturn(withBody));
+		
+		assumeTrue( !Files.exists(Paths.get(temp))); 
+		assumeAndRun("http://localhost:9090"+serverpath,"--wget");
 		assertHeadersOnly();
 		String content = new String(
-			Files.readAllBytes(Paths.get("index.html")));
-		assertThat(content,containsString("<html"));
+			Files.readAllBytes(Paths.get(temp)));
+		assertThat(content,containsString(html));
 		assertThat(content,not( startsWith("HTTP/1.1 200 OK")));
-		Files.deleteIfExists(Paths.get("index.html"));
-		assertTrue( !Files.exists(Paths.get("index.html"))); 
+		Files.deleteIfExists(Paths.get(temp));
+		assertTrue( !Files.exists(Paths.get(temp))); 
 	}
 
 	
 	@Test
 	public void testHeadersOnlyLong() throws Exception {
-		assumeAndRun("https://www.example.com","--include","--no-body");
+		assumeAndRun("http://localhost:9090","--include","--no-body");
 		assertHeadersOnly();
 	}
 	@Test
 	public void testHeadMethod() throws Exception {
-		assumeAndRun("https://www.example.com","--include","-X","HEAD");
+		assumeAndRun("http://localhost:9090","--include","-X","HEAD");
 		assertHeadersOnly();
+		assertThat(stringContent().toLowerCase(), containsString("etag: 12345678"));
+		assertThat(stringContent().toLowerCase(), containsString("etag: 12345678"));
 	}
+	
 	@Test
 	public void testHeadMethodLong() throws Exception {
-		assumeAndRun("https://www.example.com","--include","--request","HEAD");
+		assumeAndRun("http://localhost:9090","--include","--request","HEAD");
 		assertHeadersOnly();
 	}
 	
 	@Test
 	public void testZip() throws Exception {
-		assumeAndRun("https://www.example.com","-i","-g");
+		
+		ByteArrayOutputStream bout = new ByteArrayOutputStream();
+		GZIPOutputStream gout = new GZIPOutputStream(bout);
+		gout.write(html.getBytes("UTF-8"));
+		gout.finish();
+		
+		wireMockRule.stubFor(
+				get(urlPathEqualTo("/"))
+				.withHeader("Accept-Encoding", containing("gzip"))
+				.willReturn(
+					aResponse()
+						.withStatus(200)
+						.withHeader("Content-Type", "text/html; charset=UTF-8")
+						.withHeader("Content-Encoding", "gzip")
+						.withHeader("etag", "12345678")
+						.withBody(bout.toByteArray())
+						));
+		
+		assumeAndRun("http://localhost:9090","-i","-g");
 		assumeThat(stringContent().toLowerCase(), containsString("content-encoding: gzip"));
 		assertGoodHtmlWithHeaders();
 		assertThat( stringContent(), containsString("compressed bytes, inflated"));
@@ -431,8 +532,8 @@ public class AppTest
 	
 	@Test
 	public void testSSLWithDataShort() throws Exception {
-		assumeAndRun("ssl://www.example.com","-d",
-				"GET / HTTP/1.1\nHost: www.example.com\nConnection: close\n\n");
+		assumeAndRun("ssl://localhost:9091","-k","-d",
+				"GET / HTTP/1.1\nHost: localhost:9091\nConnection: close\n\n");
 		assertSocketConnected();
 		assertGoodHtmlWithHeaders();
 	}
@@ -440,8 +541,8 @@ public class AppTest
 	
 	@Test
 	public void testSSLWithDataLong() throws Exception {
-		assumeAndRun("ssl://www.example.com","--data",
-				"GET / HTTP/1.1\nHost: www.example.com\nConnection: close\n\n");
+		assumeAndRun("ssl://localhost:9091","-k","--data",
+				"GET / HTTP/1.1\nHost: localhost:9091\nConnection: close\n\n");
 		assertSocketConnected();
 		assertGoodHtmlWithHeaders();
 	}
@@ -450,8 +551,8 @@ public class AppTest
 	public void testSSLFromStdin() throws Exception {
 
 		System.setIn( new ByteArrayInputStream(
-			"GET / HTTP/1.1\r\nHost: www.example.com\r\nConnection: close\r\n\r\n".getBytes()));
-		assumeAndRun("ssl://www.example.com");
+			"GET / HTTP/1.1\r\nHost: localhost:9091\r\nConnection: close\r\n\r\n".getBytes()));
+		assumeAndRun("ssl://localhost:9091","-k");
 		assertSocketConnected();
 		assertGoodHtmlWithHeaders();
 	}
@@ -460,17 +561,45 @@ public class AppTest
 	public void testSSLFromStdinNoBody() throws Exception {
 
 		System.setIn( new ByteArrayInputStream(
-			"GET / HTTP/1.1\r\nHost: www.example.com\r\nConnection: close\r\n\r\n".getBytes()));
-		assumeAndRun("ssl://www.example.com","-n");
+			"GET / HTTP/1.1\r\nHost: localhost:9091\r\nConnection: close\r\n\r\n".getBytes()));
+		assumeAndRun("ssl://localhost:9091","-n","-k");
 		assertSocketConnected();
 		assertHeadersOnly();
 	}
+
+	@Test
+	public void testSSLDownload() throws Exception {
+		String temp = File.createTempFile("junit", "tmp").getAbsolutePath();
+		assumeAndRun("ssl://localhost:9091","-k","-d",
+				"GET / HTTP/1.1\nHost: localhost:9091\nConnection: close\n\n",
+				"--download", temp);
+		assertHeadersOnly();
+		String content = new String(
+			Files.readAllBytes(Paths.get(temp)));
+		assertThat(content,containsString(html));
+		assertThat(content,not( startsWith("HTTP/1.1 200 OK")));
+		Files.deleteIfExists(Paths.get(temp));
+	}
 	
+	@Test
+	public void testSSLDownloadAlt() throws Exception {
+		String temp = File.createTempFile("junit", "tmp").getAbsolutePath();
+		assumeAndRun("ssl://localhost:9091","-k","-d",
+				"GET / HTTP/1.1\nHost: localhost:9091\nConnection: close\n\n",
+				"-o", temp, "-n", "--skip-headers");
+		assertHeadersOnly();
+		String content = new String(
+			Files.readAllBytes(Paths.get(temp)));
+		assertThat(content,containsString(html));
+		assertThat(content,not( startsWith("HTTP/1.1 200 OK")));
+		Files.deleteIfExists(Paths.get(temp));
+	}
+
 	
 	@Test
 	public void testTCPWithDataShort() throws Exception {
-		assumeAndRun("tcp://www.example.com","-d",
-				"GET / HTTP/1.1\nHost: www.example.com\nConnection: close\n\n");
+		assumeAndRun("tcp://localhost:9090","-d",
+				"GET / HTTP/1.1\nHost: localhost:9090\nConnection: close\n\n");
 		assertSocketConnected();
 		assertGoodHtmlWithHeaders();
 	}
@@ -478,8 +607,8 @@ public class AppTest
 	
 	@Test
 	public void testTCPWithDataLong() throws Exception {
-		assumeAndRun("tcp://www.example.com","--data",
-				"GET / HTTP/1.1\nHost: www.example.com\nConnection: close\n\n");
+		assumeAndRun("tcp://localhost:9090","--data",
+				"GET / HTTP/1.1\nHost: localhost:9090\nConnection: close\n\n");
 		assertSocketConnected();
 		assertGoodHtmlWithHeaders();
 	}
@@ -488,8 +617,8 @@ public class AppTest
 	public void testTCPFromStdin() throws Exception {
 
 		System.setIn( new ByteArrayInputStream(
-			"GET / HTTP/1.1\r\nHost: www.example.com\r\nConnection: close\r\n\r\n".getBytes()));
-		assumeAndRun("tcp://www.example.com");
+			"GET / HTTP/1.1\r\nHost: localhost:9090\r\nConnection: close\r\n\r\n".getBytes()));
+		assumeAndRun("tcp://localhost:9090");
 		assertSocketConnected();
 		assertGoodHtmlWithHeaders();
 	}
@@ -563,35 +692,35 @@ public class AppTest
 	
 	@Test
 	public void testPingHttpLong() throws Exception {
-		testPing("http://www.example.com","--ping");
+		testPing("http://localhost:9090","--ping");
 	}
 	@Test
 	public void testPingHttpShort() throws Exception {
-		testPing("http://www.example.com","-z");
+		testPing("http://localhost:9090","-z");
 	}
 	@Test
 	public void testPingHttpsLong() throws Exception {
-		testPing("https://www.example.com","--ping");
+		testPing("https://localhost:9091","--ping");
 	}
 	@Test
 	public void testPingHttpsShort() throws Exception {
-		testPing("https://www.example.com","-z");
+		testPing("https://localhost:9091","-z");
 	}
 	@Test
 	public void testPingSSLLong() throws Exception {
-		testPing("ssl://www.example.com","--ping");
+		testPing("ssl://localhost:9091","--ping");
 	}
 	@Test
 	public void testPingSSLShort() throws Exception {
-		testPing("ssl://www.example.com","-z");
+		testPing("ssl://localhost:9091","-z");
 	}
 	@Test
 	public void testPingTCPLong() throws Exception {
-		testPing("tcp://www.example.com","--ping");
+		testPing("tcp://localhost:9090","--ping");
 	}
 	@Test
 	public void testPingTCPShort() throws Exception {
-		testPing("tcp://www.example.com","-z");
+		testPing("tcp://localhost:9090","-z");
 	}
 	
 	
@@ -608,7 +737,7 @@ public class AppTest
 	}
 
 	public void testPingLong() throws Exception {
-		assumeAndRun("https://www.example.com","-ping");
+		assumeAndRun("https://localhost:9091","-ping");
 	}
 	
 	
@@ -628,16 +757,28 @@ public class AppTest
 	private final ByteArrayOutputStream outContent = new ByteArrayOutputStream();
 	private final ByteArrayOutputStream errContent = new ByteArrayOutputStream();
 
+	private final static PrintStream realSystemOut = System.out;
+	private final static PrintStream realSystemErr = System.err;
+	
+	
 	@Before
 	public void setUpStreams() {
-	    System.setOut(new PrintStream(outContent));
-	    System.setErr(new PrintStream(errContent));
+		
+		class TeeStream extends OutputStream {
+			public void write(int b) throws IOException {
+				realSystemOut.write(b);
+				outContent.write(b);
+			}
+		};
+		
+	    System.setOut(new PrintStream(new TeeStream()));
+//	    System.setErr(new PrintStream(errContent));
 	}
 
 	@After
 	public void cleanUpStreams() {
-	    System.setOut(null);
-	    System.setErr(null);
+	    System.setOut(realSystemOut);
+	    System.setErr(realSystemErr);
 	}	
 	
 }
