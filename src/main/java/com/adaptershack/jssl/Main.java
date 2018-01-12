@@ -24,6 +24,8 @@ public class Main  {
 		options.addOption(null, "keystore", true, "custom keystore for client certs, if any");
 		options.addOption(null, "keypass", true, "password to extract key from store");
 		options.addOption(null, "storepass", true, "password to open keystore");			
+		options.addOption(null, "truststore", true, "custom trust store for server certs, if any");
+		options.addOption(null, "trustpass", true, "trust store password");
 		options.addOption("o","out-file",true,"write response body to file");
 		options.addOption("d", "data", true, "data to be posted to server");
 		options.addOption("f", "file", true, "file to be posted to server");
@@ -103,6 +105,8 @@ public class Main  {
         	client.setSaveChainLength(Integer.parseInt(cmdLine.getOptionValue("save-chain")));
         }
         client.setPing(cmdLine.hasOption("ping"));
+        client.setTrustStore(cmdLine.getOptionValue("truststore"));
+        client.setTrustpass(cmdLine.getOptionValue("trustpass"));
         
         String urlString = cmdLine.getArgList().get(0);
 

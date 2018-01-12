@@ -146,7 +146,7 @@ public class AppTest
 	  WireMockConfiguration.wireMockConfig()
 	  .httpsPort(9092)
 	  .needClientAuth(true)
-	  .trustStorePath("testfiles/server-cacerts")
+	  .trustStorePath("test-certs/server-cacerts")
 	  .trustStorePassword("changeit")
 	);
 	
@@ -158,11 +158,18 @@ public class AppTest
 				get(urlPathEqualTo("/"))
 				.willReturn(withBody));
 		
-		System.out.println(System.getProperty("user.dir"));
-		
-		testHTML("https://localhost:9092","-k","--keystore","client.pfx","--keypass","changeit");
+		testHTML("https://localhost:9092","-k","--keystore","test-certs/client-ks","--keypass","changeit");
 	}
 	
+	@Test
+	public void testCustomCacerts() throws Exception {
+
+		wireMockRuleClientCerts.stubFor(
+				get(urlPathEqualTo("/"))
+				.willReturn(withBody));
+				
+		testHTML("https://localhost:9091","--truststore","test-certs/client-cacerts","--trustpass","changeit");
+	}
 	
 
 	@Test

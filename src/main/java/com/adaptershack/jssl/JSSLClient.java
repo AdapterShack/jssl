@@ -42,7 +42,9 @@ import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
+import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509KeyManager;
+import javax.net.ssl.X509TrustManager;
 import javax.security.auth.x500.X500Principal;
 
 import java.security.cert.X509Certificate;
@@ -61,6 +63,9 @@ public class JSSLClient {
 	String keystore;
 	char[] keypass;
 	char[] storepass;
+	
+	String trustStore;
+	char[] trustpass;
 	
 	String[] headers;
 	
@@ -473,7 +478,7 @@ public class JSSLClient {
 
 
 
-	private TrustManager[] getTrustManagers() {
+	private TrustManager[] getTrustManagers() throws NoSuchAlgorithmException, KeyStoreException, CertificateException, IOException {
 		
 		if(insecure) {
 			log("Creating TrustManager");
@@ -481,6 +486,38 @@ public class JSSLClient {
 			TrustManager[] tm = { new TrustingTrustManager() };
 			logEach("TrustManagers: ",tm);
 			return tm;
+		
+		} else if (trustStore != null) {
+			
+			KeyStore myTrustStore = KeyStore.getInstance(KeyStore.getDefaultType());
+
+			try(FileInputStream f = new FileInputStream(trustStore)) {
+				myTrustStore.load(f, trustpass);
+			}
+			
+			TrustManagerFactory keystoreTMF = TrustManagerFactory
+			    .getInstance(TrustManagerFactory.getDefaultAlgorithm());
+			keystoreTMF.init(myTrustStore);				
+
+			TrustManager[] keystoreTM = keystoreTMF.getTrustManagers();
+			
+			TrustManagerFactory defaultTMF = TrustManagerFactory
+				    .getInstance(TrustManagerFactory.getDefaultAlgorithm());
+
+			defaultTMF.init((KeyStore) null);
+			
+			TrustManager[] tm = defaultTMF.getTrustManagers();
+			
+			for(int i=0; i<tm.length; i++) {
+				tm[i] = new TwoLevelTrustManager((X509TrustManager) tm[0], keystoreTM);
+			}
+			
+			Log.logEach("Trust Managers: ", tm);
+			
+			return tm;
+			
+				
+			
 		}
 		
 		return null;
@@ -929,6 +966,26 @@ public class JSSLClient {
 
 	public void setGzip(boolean gzip) {
 		this.gzip = gzip;
+	}
+
+
+
+	public String getTrustStore() {
+		return trustStore;
+	}
+
+
+
+	public void setTrustStore(String trustStore) {
+		this.trustStore = trustStore;
+	}
+
+
+
+	public void setTrustpass(String s) {
+		if(s != null) {
+			this.trustpass = s.toCharArray();
+		}
 	}
 
 	
