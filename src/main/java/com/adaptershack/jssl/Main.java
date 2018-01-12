@@ -14,7 +14,7 @@ import org.apache.commons.cli.Options;
  */
 public class Main  {
 
-	public static void main( String[] args ) throws Exception {
+	public static void main( String... args ) throws Exception {
         
 		Options options = new Options();
 
@@ -37,7 +37,8 @@ public class Main  {
 		options.addOption(null,"save-pass",true,"password for saved keystore");
 		options.addOption(null,"save-type",true,"type of saved keystore");
 		options.addOption(null,"save-chain",true,"how many certs of the chain to save (default all)");
-
+		options.addOption("z","ping",false,"just determine if the port is open, don't send any data"); 
+		
 		// options only for HTTP(s)
 		options.addOption(null, "content-type", true, "force content type");
 		options.addOption("n","no-body",false,"skip printing out the actual response body");
@@ -101,6 +102,7 @@ public class Main  {
         if(cmdLine.hasOption("save-chain")) {
         	client.setSaveChainLength(Integer.parseInt(cmdLine.getOptionValue("save-chain")));
         }
+        client.setPing(cmdLine.hasOption("ping"));
         
         String urlString = cmdLine.getArgList().get(0);
 

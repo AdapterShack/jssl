@@ -8,6 +8,9 @@ import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.PrintStream;
 import java.net.HttpURLConnection;
+import java.net.Socket;
+import java.net.URI;
+import java.net.UnknownHostException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Properties;
@@ -51,6 +54,8 @@ public class Utils {
 							is2.getCompressed(), is2.getUncompressed(),
 							is2.getRatio()
 							);
+				} else if ( is instanceof ProgressInputStream) {
+					Log.log("Read %d bytes", ((ProgressInputStream)is).count);
 				}
 			}
 		}
@@ -61,7 +66,7 @@ public class Utils {
 		ByteArrayOutputStream bis = new ByteArrayOutputStream();
 	
 		// this uses our system charset
-		OutputStreamWriter writer = new OutputStreamWriter(bis);
+		OutputStreamWriter writer = new OutputStreamWriter(bis, System.getProperty("file.encoding"));
 		
 		// this uses the charset from the HTTP response
 		InputStreamReader reader = new InputStreamReader(is,charset);
@@ -269,6 +274,37 @@ public class Utils {
 				e.printStackTrace();
 				return null;
 			}
+		}
+	}
+
+	public static boolean reachable(String u) {
+		try {
+			ping(u);
+			return true;
+		} catch (Exception e) {
+			return false;
+		}
+	}
+	
+	public static void ping(String u) throws Exception {
+		URI uri = new URI(u);
+		String host = uri.getHost();
+		int port = uri.getPort();
+		if(port == -1) {
+			String scheme = uri.getScheme();
+			if( scheme.equalsIgnoreCase("https") || scheme.equalsIgnoreCase("ssl")) {
+				port = 443;
+			} else {
+				port = 80;
+			}
+		}
+		ping(host, port);
+	}
+
+	
+	public static void ping(String host, int port) throws UnknownHostException, IOException {
+		try( Socket s = new Socket(host, port) ) {
+			// it worked!
 		}
 	}
 

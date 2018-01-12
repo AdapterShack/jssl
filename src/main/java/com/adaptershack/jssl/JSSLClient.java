@@ -107,24 +107,27 @@ public class JSSLClient {
 	private String saveKeystoreType;
 	private int saveChainLength = -1;
 	
+	private boolean ping;
 	
-	public boolean isGzip() {
-		return gzip;
-	}
-
-
-
-	public void setGzip(boolean gzip) {
-		this.gzip = gzip;
-	}
-
+	
 
 
 	public void run (String urlString) throws Exception {
 		
 		checkSetup();
-
+		
 		parseUrl(urlString);
+
+		if(ping) {
+			try {
+				Utils.ping(host,port);
+				Log.log("%s is open", urlString);
+			} catch (Exception e) {
+				e.printStackTrace(stdout);
+			}
+			return;
+		}
+
 		
 		if(useSSL) {
 			socketFactory = createSocketFactory();
@@ -250,7 +253,9 @@ public class JSSLClient {
 			toServer.interrupt();
 		}
 		
-		System.exit(0);
+		if(System.getProperty("no-exit")==null) {
+			System.exit(0);
+		}
 	}
 
 
@@ -266,6 +271,10 @@ public class JSSLClient {
 		
 		connection.setUseCaches(useCaches);
 		connection.setInstanceFollowRedirects(followRedirects);
+
+		if(connection instanceof HttpsURLConnection) {
+			((HttpsURLConnection) connection).setSSLSocketFactory(socketFactory);
+		}		
 		
 		if(gzip) {
 			connection.setRequestProperty("Accept-Encoding", "gzip");
@@ -330,7 +339,7 @@ public class JSSLClient {
 		
 		byte[] responseData = Utils.readAll(connection, !binary);
 		
-		log("Read " + responseData.length + " bytes");
+		//log("Read " + responseData.length + " bytes");
 
 		if(outFileName != null) {
 			try(FileOutputStream fout = new FileOutputStream(outFileName)) {
@@ -900,4 +909,28 @@ public class JSSLClient {
 		this.saveChainLength = saveChainLength;
 	}
 
+
+
+	public boolean isPing() {
+		return ping;
+	}
+
+
+
+	public void setPing(boolean ping) {
+		this.ping = ping;
+	}
+
+	public boolean isGzip() {
+		return gzip;
+	}
+
+
+
+	public void setGzip(boolean gzip) {
+		this.gzip = gzip;
+	}
+
+	
+	
 }

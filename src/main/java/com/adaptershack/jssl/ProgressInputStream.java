@@ -35,6 +35,12 @@ public class ProgressInputStream extends InputStream {
 		} else {
 			mod = 1024 * 4;
 		}
+		
+		// could happen when the content-length is
+		// actually than the number of chunks
+		if(mod==0) {
+			mod = expected;
+		}
 	}
 	
 	
@@ -59,10 +65,14 @@ public class ProgressInputStream extends InputStream {
 					Log.log("%10d bytes read...", count);
 				}
 			}
+			count++;
 		}
 		
-		count++;
 		return c;
+	}
+
+	public int getCount() {
+		return count;
 	}
 	
 
