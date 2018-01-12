@@ -267,10 +267,6 @@ public class JSSLClient {
 		connection.setUseCaches(useCaches);
 		connection.setInstanceFollowRedirects(followRedirects);
 		
-		if(connection instanceof HttpsURLConnection) {
-			((HttpsURLConnection) connection).setSSLSocketFactory(socketFactory);
-		}
-		
 		if(gzip) {
 			connection.setRequestProperty("Accept-Encoding", "gzip");
 		}
@@ -325,6 +321,12 @@ public class JSSLClient {
 				out.flush();
 			}
 		}
+
+		if( saveCertsFile != null && connection instanceof HttpsURLConnection) {
+			connection.connect();
+			Certificate[] chain = ((HttpsURLConnection) connection).getServerCertificates();
+			saveCerts(chain);
+		}
 		
 		byte[] responseData = Utils.readAll(connection, !binary);
 		
@@ -335,11 +337,6 @@ public class JSSLClient {
 				fout.write(responseData);
 				log("Wrote " + responseData.length + " bytes to " + outFileName);
 			}
-		}
-
-		if( saveCertsFile != null && connection instanceof HttpsURLConnection) {
-			Certificate[] chain = ((HttpsURLConnection) connection).getServerCertificates();
-			saveCerts(chain);
 		}
 		
 		banner("Response:");
