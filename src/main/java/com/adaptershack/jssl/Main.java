@@ -33,6 +33,10 @@ public class Main  {
 		options.addOption(null,"keystore-type", true, "keystore type (default PKCS12)");
 		options.addOption("b","binary",false,"disables charset conversions and retrives "
 				+ "content from the server byte for byte");
+		options.addOption(null,"save-certs",true,"save server's certs to file");
+		options.addOption(null,"save-pass",true,"password for saved keystore");
+		options.addOption(null,"save-type",true,"type of saved keystore");
+		options.addOption(null,"save-chain",true,"how many certs of the chain to save (default all)");
 
 		// options only for HTTP(s)
 		options.addOption(null, "content-type", true, "force content type");
@@ -91,6 +95,12 @@ public class Main  {
         client.setBufsize( Integer.parseInt( cmdLine.getOptionValue("buffer","1024")));
         client.setSkipHeadersInOutfile(cmdLine.hasOption("skip-headers"));
         client.setGzip(cmdLine.hasOption("gzip"));
+        client.setSaveCertsFile(cmdLine.getOptionValue("save-certs"));
+        client.setSaveStorePassword(cmdLine.getOptionValue("save-pass"));
+        client.setSaveKeystoreType(cmdLine.getOptionValue("save-type"));
+        if(cmdLine.hasOption("save-chain")) {
+        	client.setSaveChainLength(Integer.parseInt(cmdLine.getOptionValue("save-chain")));
+        }
         
         String urlString = cmdLine.getArgList().get(0);
 

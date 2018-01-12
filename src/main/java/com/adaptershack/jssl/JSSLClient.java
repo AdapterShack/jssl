@@ -4,6 +4,7 @@ import static com.adaptershack.jssl.HeaderAwareOutputStream.*;
 
 import java.io.ByteArrayInputStream;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -18,18 +19,33 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.UnknownHostException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateException;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import javax.naming.InvalidNameException;
+import javax.naming.ldap.LdapName;
+import javax.naming.ldap.Rdn;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509KeyManager;
+import javax.security.auth.x500.X500Principal;
+
+import java.security.cert.X509Certificate;
 
 import static com.adaptershack.jssl.Log.*;
 
@@ -86,6 +102,10 @@ public class JSSLClient {
 	private boolean gzip;
 	
 	private String userInfo;
+	private String saveCertsFile;
+	private char[] saveStorePassword ;
+	private String saveKeystoreType;
+	private int saveChainLength = -1;
 	
 	
 	public boolean isGzip() {
@@ -141,7 +161,7 @@ public class JSSLClient {
 
 
 
-	private void doSocket() throws IOException, UnknownHostException, InterruptedException {
+	private void doSocket() throws IOException, UnknownHostException, InterruptedException, KeyStoreException, NoSuchAlgorithmException, CertificateException, InvalidNameException {
 		
 		log("Opening " + (useSSL ? "SSL " : " ") + "socket to " + host + ":" + port );
 		
@@ -157,6 +177,11 @@ public class JSSLClient {
 				
 		) {			
 
+			if(saveCertsFile != null && socket instanceof SSLSocket) {
+				Certificate[] certs = ((SSLSocket) socket).getSession().getPeerCertificates();
+				saveCerts(certs);
+			}
+			
 			CountingStream counter =
 					fileOut == null ? null : new CountingStream(fileOut);
 
@@ -266,7 +291,7 @@ public class JSSLClient {
 		}
 
 		//connection.connect();
-		
+				
 		byte[] postData = null;
 		
 		if( dataFileName != null ) {
@@ -311,6 +336,11 @@ public class JSSLClient {
 				log("Wrote " + responseData.length + " bytes to " + outFileName);
 			}
 		}
+
+		if( saveCertsFile != null && connection instanceof HttpsURLConnection) {
+			Certificate[] chain = ((HttpsURLConnection) connection).getServerCertificates();
+			saveCerts(chain);
+		}
 		
 		banner("Response:");
 		
@@ -336,6 +366,79 @@ public class JSSLClient {
 		}
 		stdout.flush();
 		
+	}
+
+
+	public void saveCerts(Certificate[] chain) throws KeyStoreException, IOException, NoSuchAlgorithmException,
+			CertificateException, FileNotFoundException, InvalidNameException {
+		if(chain.length > 0) {
+
+			 String type = saveKeystoreType == null ? "PKCS12" : saveKeystoreType;
+			 
+			 CertWriter certWriter = CertWriter.getInstance(type);
+			 
+			 if(certWriter.supportsPassword() && saveStorePassword == null) {
+				 saveStorePassword = Utils.passwordPrompt("Password to save certs: ", stdout, stdin);
+			 }
+			 
+			 if(Files.isRegularFile(Paths.get(saveCertsFile))) {
+				 try(FileInputStream f = new FileInputStream(saveCertsFile)) {
+					 certWriter.load(f, saveStorePassword);
+				 }
+			 } else {
+				 certWriter.load(null, null);
+			 }
+			 
+			 int count = 0;
+			 
+			 for(Certificate cert : chain) {
+				 if(cert instanceof X509Certificate) {
+					 String certAlias = chooseAlias((X509Certificate) cert);
+					 Log.log("Saving alias [%s] cert %s", certAlias, namesMap(cert));
+					 certWriter.setCertificateEntry(certAlias, cert);
+					 
+					 if( ++count == saveChainLength  ) {
+						 break;
+					 }
+				 }
+			 }
+
+			 
+			 try(FileOutputStream f = new FileOutputStream(saveCertsFile)) {
+				 certWriter.store(f, saveStorePassword );
+				 Log.log("Wrote %d certificates to %s", count, saveCertsFile);
+			 }
+		}
+	}
+
+
+	public String chooseAlias(X509Certificate cert) throws InvalidNameException {
+		Map<String, String> names = getNames(cert.getSubjectX500Principal());
+		
+		return names.get("CN");
+		
+	}
+	
+
+	public Map<String, Map<String, String>> namesMap(Certificate cert) throws InvalidNameException {
+		Map<String, Map<String, String>> names = new LinkedHashMap<>();
+		X509Certificate x509 = (X509Certificate) cert;
+		names.put("Subject", getNames(x509.getSubjectX500Principal()));
+		names.put("Issuer", getNames(x509.getIssuerX500Principal()));
+		 
+		return names;
+	}
+
+
+
+	public Map<String, String> getNames(X500Principal principal) throws InvalidNameException {
+		LdapName ldn = new LdapName(principal.getName());
+
+		 Map<String,String> names = new HashMap<>();
+		 for( Rdn rdn : ldn.getRdns()) {
+			 names.put(rdn.getType(), rdn.getValue().toString());
+		 }
+		return names;
 	}
 
 
@@ -748,6 +851,56 @@ public class JSSLClient {
 
 	public void setSkipHeadersInOutfile(boolean skipHeaders) {
 		this.skipHeaders = skipHeaders;
+	}
+
+
+
+	public String getSaveCertsFile() {
+		return saveCertsFile;
+	}
+
+
+
+	public void setSaveCertsFile(String saveCertsFile) {
+		this.saveCertsFile = saveCertsFile;
+	}
+
+
+
+	public char[] getSaveStorePassword() {
+		return saveStorePassword;
+	}
+
+
+
+	public void setSaveStorePassword(String _saveStorePassword) {
+		if(_saveStorePassword != null ) {
+			this.saveStorePassword = _saveStorePassword.toCharArray();
+		}
+	}
+
+
+
+	public String getSaveKeystoreType() {
+		return saveKeystoreType;
+	}
+
+
+
+	public void setSaveKeystoreType(String saveKeystoreType) {
+		this.saveKeystoreType = saveKeystoreType;
+	}
+
+
+
+	public int getSaveChainLength() {
+		return saveChainLength;
+	}
+
+
+
+	public void setSaveChainLength(int saveChainLength) {
+		this.saveChainLength = saveChainLength;
 	}
 
 }
