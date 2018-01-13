@@ -10,10 +10,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
-import java.io.PrintStream;
 import java.io.UnsupportedEncodingException;
-import java.net.Authenticator;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.KeyStore;
@@ -24,17 +21,13 @@ import java.util.UUID;
 import java.util.zip.GZIPOutputStream;
 
 import javax.net.ssl.SSLHandshakeException;
-import javax.servlet.Servlet;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import org.eclipse.jetty.server.Server;
-import org.eclipse.jetty.servlet.ServletContextHandler;
-import org.eclipse.jetty.servlet.ServletHolder;
-import org.junit.After;
-import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 
@@ -47,8 +40,6 @@ import static com.github.tomakehurst.wiremock.client.WireMock.*;
 import static org.hamcrest.CoreMatchers.*;
 
 /**
- * Unit test for simple App.
- * 
  * This class performs actual HTTP and HTTPS requests using
  * WireMock to create an HTTP server. All tests will skip if
  * it is detected that the server isn't listening (such as 
@@ -59,30 +50,39 @@ import static org.hamcrest.CoreMatchers.*;
  * access available.
  * 
  */
-public class AppTest 
+public class MainTest 
 {
 	static {
 		System.setProperty("no-exit", "true");
 		//System.setProperty("javax.net.debug", "all");
 	}
-	
+
+	// capture standard in, out, error
 	@Rule
-	public WireMockRule wireMockRule = new WireMockRule(
+	public StreamCatcher streams = new StreamCatcher(false);	
+	
+	@ClassRule
+	public static WireMockRule wireMockRule = new WireMockRule(
 	  WireMockConfiguration.wireMockConfig()
 	  .port(9090)
 	  .httpsPort(9091)
 	);
 
-	String unicodeJunk = "\u00c4\u00df\u00e7\u00f0";		
-	String json = "{'user':'abc','pass','123'}";
-	String html = "<html><head><title>Hello</title></head><body>World</body></html>";
+	// we use jetty directly (not via wiremock) to handle basic auth
+	@ClassRule
+	public static JettyRule jetty = new JettyRule(9093);
+	
+	static String unicodeJunk = "\u00c4\u00df\u00e7\u00f0";		
+	static String json = "{'user':'abc','pass','123'}";
+	static String html = "<html><head><title>Hello</title></head><body>World</body></html>";
 
-	ResponseDefinitionBuilder withBody = aResponse()
+	static ResponseDefinitionBuilder withBody = aResponse()
 			.withHeader("Content-type", "text/html; charset=UTF-8")
 			.withBody(html);
 
-	@Before
-	public void config() throws UnsupportedEncodingException {
+	@SuppressWarnings("serial")
+	@BeforeClass
+	public static void config() throws UnsupportedEncodingException {
 		
 		wireMockRule.stubFor(
 				get(urlPathEqualTo("/"))
@@ -135,7 +135,25 @@ public class AppTest
 					.withHeader("Content-Type", "text/plain; charset=iso-8859-1")
 					.withBody( unicodeJunk.getBytes("iso-8859-1") )
 					));
-		
+
+		jetty.addServlet("/",
+	    		new HttpServlet() {
+	    			@Override
+	    			protected void service(HttpServletRequest req, HttpServletResponse res)
+	    					throws ServletException, IOException {
+	 
+	    				String expected = "Basic " + Base64.getEncoder().encodeToString(
+	    						"user:password".getBytes());
+			
+	    				if( ! expected.equals(req.getHeader("Authorization"))) {
+	    					res.setHeader("WWW-Authenticate", "Basic realm=\"Members Area\"");
+	    					res.sendError(401);
+	    				} else {
+	    					res.setContentType("text/html); charset=utf-8");
+	    					res.getWriter().print(html);
+	    				}
+	    			}
+	    		});
 	}
 		
 	@Test
@@ -149,41 +167,6 @@ public class AppTest
 	}
 
 
-
-	public Server getAuthJetty() {
-		@SuppressWarnings("serial")
-		Server server = getJetty(
-    		new HttpServlet() {
-    			@Override
-    			protected void service(HttpServletRequest req, HttpServletResponse res)
-    					throws ServletException, IOException {
- 
-    				String expected = "Basic " + Base64.getEncoder().encodeToString(
-    						"user:password".getBytes());
-		
-    				if( ! expected.equals(req.getHeader("Authorization"))) {
-    					res.setHeader("WWW-Authenticate", "Basic realm=\"Members Area\"");
-    					res.sendError(401);
-    				} else {
-    					res.setContentType("text/html); charset=utf-8");
-    					res.getWriter().print(html);
-    				}
-    			}
-    		}
-	    );
-		return server;
-	}
-
-	public Server getJetty(Servlet servlet) {
-		Server server = new Server(9093);
-	    ServletContextHandler context = new ServletContextHandler();
-	    ServletHolder defaultServ = new ServletHolder();
-	    defaultServ.setServlet(servlet);
-	    context.addServlet(defaultServ,"/");
-	    server.setHandler(context);
-		return server;
-	}
-	
 	@Test
 	public void testBasicAuthOnUrl() throws Exception {
 		this.assumeAndRun("http://user:password@localhost:9093","-i");
@@ -193,27 +176,13 @@ public class AppTest
 	@Test
 	public void testBasicAuthOnPrompted() throws Exception {
 
-		System.setIn( new ByteArrayInputStream(
-				"password\n".getBytes()));
+		streams.setIn("password\n");
 				
 		this.assumeAndRun("http://user@localhost:9093","-i");
 		this.assertGoodHtmlWithHeaders();
 	}
 
 
-	
-	Server jetty = getAuthJetty();
-	
-	@Before
-	public void runAuth() throws Exception {
-		jetty.start();
-	}
-	
-	@After
-	public void stopAuth() throws Exception {
-		jetty.stop();
-	}
-	
 	
 	
 	@Rule
@@ -318,7 +287,7 @@ public class AppTest
 		ks.load(new ByteArrayInputStream(content), randpass.toCharArray());
 		
 		for(String alias : Collections.list(ks.aliases())) {
-			assertThat(stringContent().toLowerCase(), containsString("alias [" + alias + "]"));
+			assertThat(streams.outText().toLowerCase(), containsString("alias [" + alias + "]"));
 		}
 		
 		Files.deleteIfExists(Paths.get(temp));
@@ -344,7 +313,7 @@ public class AppTest
 		ArrayList<String> list = Collections.list(ks.aliases());
 		assertThat( list.size(), is(1));
 		for(String alias : list) {
-			assertThat(stringContent().toLowerCase(), containsString("alias [" + alias + "]"));
+			assertThat(streams.outText().toLowerCase(), containsString("alias [" + alias + "]"));
 		}
 		
 		Files.deleteIfExists(Paths.get(temp));
@@ -398,8 +367,8 @@ public class AppTest
 		String temp = File.createTempFile("junit", "tmp").getAbsolutePath();
 		assumeAndRun("http://localhost:9090/i18n/utf-8","-i","-n","-o", temp);
 		assertHeadersOnly();
-		assertThat( stringContent().toLowerCase(), containsString("content-type: text/plain; charset=utf-8"));
-		assertThat(stringContent().toLowerCase(), containsString("translating server charset utf-8 to local iso-8859-1"));
+		assertThat( streams.outText().toLowerCase(), containsString("content-type: text/plain; charset=utf-8"));
+		assertThat(streams.outText().toLowerCase(), containsString("translating server charset utf-8 to local iso-8859-1"));
 		byte[] allBytes = Files.readAllBytes(Paths.get(temp));
 		String content = new String(
 			allBytes, "iso-8859-1");
@@ -421,10 +390,10 @@ public class AppTest
 		String temp = File.createTempFile("junit", "tmp").getAbsolutePath();
 		assumeAndRun("http://localhost:9090/i18n/iso-8859-1","-i","-n","-o", temp);
 		assertHeadersOnly();
-		assumeThat( stringContent().toLowerCase(), containsString("content-type: text/plain; charset=iso-8859-1"));
-		assertThat(stringContent().toLowerCase(), containsString("translating server charset iso-8859-1 to local utf-8"));
-		assertThat(stringContent().toLowerCase(), containsString("read "+isoLength+" bytes"));
-		assertThat(stringContent().toLowerCase(), containsString("wrote "+utfLength+" bytes"));
+		assumeThat( streams.outText().toLowerCase(), containsString("content-type: text/plain; charset=iso-8859-1"));
+		assertThat(streams.outText().toLowerCase(), containsString("translating server charset iso-8859-1 to local utf-8"));
+		assertThat(streams.outText().toLowerCase(), containsString("read "+isoLength+" bytes"));
+		assertThat(streams.outText().toLowerCase(), containsString("wrote "+utfLength+" bytes"));
 		byte[] allBytes = Files.readAllBytes(Paths.get(temp));
 		String content = new String(
 			allBytes, "UTF-8");
@@ -445,8 +414,8 @@ public class AppTest
 		String temp = File.createTempFile("junit", "tmp").getAbsolutePath();
 		assumeAndRun("http://localhost:9090/i18n/utf-8","-i","-n","-b","-o", temp);
 		assertHeadersOnly();
-		assumeThat( stringContent().toLowerCase(), containsString("content-type: text/plain; charset=utf-8"));
-		assertThat(stringContent().toLowerCase(), not( containsString("translating server charset")));
+		assumeThat( streams.outText().toLowerCase(), containsString("content-type: text/plain; charset=utf-8"));
+		assertThat(streams.outText().toLowerCase(), not( containsString("translating server charset")));
 		byte[] allBytes = Files.readAllBytes(Paths.get(temp));
 		String content = new String(
 			allBytes, "UTF-8");
@@ -465,8 +434,8 @@ public class AppTest
 		String temp = File.createTempFile("junit", "tmp").getAbsolutePath();
 		assumeAndRun("http://localhost:9090/i18n/utf-8-no-cs","-i","-n","-b","-o", temp);
 		assertHeadersOnly();
-		assumeThat( stringContent().toLowerCase(), containsString("content-type: text/plain"));
-		assertThat(stringContent().toLowerCase(), not( containsString("translating server charset")));
+		assumeThat( streams.outText().toLowerCase(), containsString("content-type: text/plain"));
+		assertThat(streams.outText().toLowerCase(), not( containsString("translating server charset")));
 		byte[] allBytes = Files.readAllBytes(Paths.get(temp));
 		String content = new String(
 			allBytes, "UTF-8");
@@ -497,9 +466,9 @@ public class AppTest
 			            .withBody("{'success':true}")));
 
 		assumeAndRun("http://localhost:9090/login","-i","-d",json);
-		assertThat( stringContent(), containsString("HTTP/1.1 200 OK"));
-		assertThat( stringContent(), containsString("Content-Type: application/json"));
-		assertThat( stringContent(), containsString("{'success':true}"));
+		assertThat( streams.outText(), containsString("HTTP/1.1 200 OK"));
+		assertThat( streams.outText(), containsString("Content-Type: application/json"));
+		assertThat( streams.outText(), containsString("{'success':true}"));
 		Files.deleteIfExists(Paths.get(temp));
 	}
 
@@ -520,9 +489,9 @@ public class AppTest
 		assumeAndRun("http://localhost:9090/login","-i","-d",json,
 				"--content-type", "text/json");
 		
-		assertThat( stringContent(), containsString("HTTP/1.1 200 OK"));
-		assertThat( stringContent(), containsString("Content-Type: application/json"));
-		assertThat( stringContent(), containsString("{'success':true}"));
+		assertThat( streams.outText(), containsString("HTTP/1.1 200 OK"));
+		assertThat( streams.outText(), containsString("Content-Type: application/json"));
+		assertThat( streams.outText(), containsString("{'success':true}"));
 		
 	}
 
@@ -538,9 +507,9 @@ public class AppTest
 			            .withBody("{'success':true}")));
 
 		assumeAndRun("http://localhost:9090/login","-i","-d",json);
-		assertThat( stringContent(), containsString("HTTP/1.1 200 OK"));
-		assertThat( stringContent(), containsString("Content-Type: application/json"));
-		assertThat( stringContent(), containsString("{'success':true}"));
+		assertThat( streams.outText(), containsString("HTTP/1.1 200 OK"));
+		assertThat( streams.outText(), containsString("Content-Type: application/json"));
+		assertThat( streams.outText(), containsString("{'success':true}"));
 	}
 	
 	
@@ -576,8 +545,8 @@ public class AppTest
 	public void testHeadMethod() throws Exception {
 		assumeAndRun("http://localhost:9090","--include","-X","HEAD");
 		assertHeadersOnly();
-		assertThat(stringContent().toLowerCase(), containsString("etag: 12345678"));
-		assertThat(stringContent().toLowerCase(), containsString("etag: 12345678"));
+		assertThat(streams.outText().toLowerCase(), containsString("etag: 12345678"));
+		assertThat(streams.outText().toLowerCase(), containsString("etag: 12345678"));
 	}
 	
 	@Test
@@ -607,9 +576,9 @@ public class AppTest
 						));
 		
 		assumeAndRun("http://localhost:9090","-i","-g");
-		assumeThat(stringContent().toLowerCase(), containsString("content-encoding: gzip"));
+		assumeThat(streams.outText().toLowerCase(), containsString("content-encoding: gzip"));
 		assertGoodHtmlWithHeaders();
-		assertThat( stringContent(), containsString("compressed bytes, inflated"));
+		assertThat( streams.outText(), containsString("compressed bytes, inflated"));
 	}
 	
 	@Test
@@ -631,9 +600,7 @@ public class AppTest
 	
 	@Test
 	public void testSSLFromStdin() throws Exception {
-
-		System.setIn( new ByteArrayInputStream(
-			"GET / HTTP/1.1\r\nHost: localhost:9091\r\nConnection: close\r\n\r\n".getBytes()));
+		streams.setIn("GET / HTTP/1.1\r\nHost: localhost:9091\r\nConnection: close\r\n\r\n".getBytes());
 		assumeAndRun("ssl://localhost:9091","-k");
 		assertSocketConnected();
 		assertGoodHtmlWithHeaders();
@@ -641,9 +608,7 @@ public class AppTest
 
 	@Test
 	public void testSSLFromStdinNoBody() throws Exception {
-
-		System.setIn( new ByteArrayInputStream(
-			"GET / HTTP/1.1\r\nHost: localhost:9091\r\nConnection: close\r\n\r\n".getBytes()));
+		streams.setIn("GET / HTTP/1.1\r\nHost: localhost:9091\r\nConnection: close\r\n\r\n".getBytes());
 		assumeAndRun("ssl://localhost:9091","-n","-k");
 		assertSocketConnected();
 		assertHeadersOnly();
@@ -697,9 +662,7 @@ public class AppTest
 	
 	@Test
 	public void testTCPFromStdin() throws Exception {
-
-		System.setIn( new ByteArrayInputStream(
-			"GET / HTTP/1.1\r\nHost: localhost:9090\r\nConnection: close\r\n\r\n".getBytes()));
+		streams.setIn("GET / HTTP/1.1\r\nHost: localhost:9090\r\nConnection: close\r\n\r\n".getBytes());
 		assumeAndRun("tcp://localhost:9090");
 		assertSocketConnected();
 		assertGoodHtmlWithHeaders();
@@ -707,29 +670,29 @@ public class AppTest
 	
 	public void assertSocketConnected() {
 		assertThat("SSL connected",
-				stringContent(),
+				streams.outText(),
 				containsString("Connected to"));
 	}
 
 	public void assertGoodHtml() {
 		assertThat("HTML returned",
-				stringContent(),
+				streams.outText(),
 				containsString("<html"));
 	}
 
 	void assertGoodHtmlWithHeaders() {
 		assertThat("HTTP OK",
-				stringContent(),
+				streams.outText(),
 				containsString("HTTP/1.1 200 OK"));
 		assertGoodHtml();
 	}
 	
 	void assertHeadersOnly() {
 		assertThat("HTTP OK",
-				stringContent(),
+				streams.outText(),
 				containsString("HTTP/1.1 200 OK"));
 		assertThat("HTML returned",
-				stringContent(),
+				streams.outText(),
 				not( containsString("<html")));
 	}
 	
@@ -809,15 +772,11 @@ public class AppTest
 	public void testPing(String...args) throws Exception {
 		assumeAndRun(args);
 		assertThat("Port open",
-				stringContent(),
+				streams.outText(),
 				containsString("is open"));
 	}
 
 	
-	public String stringContent() {
-		return new String(outContent.toByteArray());
-	}
-
 	public void testPingLong() throws Exception {
 		assumeAndRun("https://localhost:9091","-ping");
 	}
@@ -836,31 +795,5 @@ public class AppTest
 	}
 	
 	
-	private final ByteArrayOutputStream outContent = new ByteArrayOutputStream();
-	private final ByteArrayOutputStream errContent = new ByteArrayOutputStream();
-
-	private final static PrintStream realSystemOut = System.out;
-	private final static PrintStream realSystemErr = System.err;
-	
-	
-	@Before
-	public void setUpStreams() {
-		
-		class TeeStream extends OutputStream {
-			public void write(int b) throws IOException {
-				realSystemOut.write(b);
-				outContent.write(b);
-			}
-		};
-		
-	    System.setOut(new PrintStream(new TeeStream()));
-//	    System.setErr(new PrintStream(errContent));
-	}
-
-	@After
-	public void cleanUpStreams() {
-	    System.setOut(realSystemOut);
-	    System.setErr(realSystemErr);
-	}	
 	
 }
