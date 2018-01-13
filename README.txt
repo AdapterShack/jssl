@@ -45,11 +45,10 @@ equivalents. The fact that this is doable, shows that the JDK provides much more
 useful built-in functionality now that it once did.
 
 usage: java -jar [this-jar-file] [options] url
-
-Options:
-
+Options
+ -a,--no-auth               disable HTTP Basic auth
     --alias <arg>           use alias from keystore
- -b,--binary                disables charset conversions and retrieves
+ -b,--binary                disables charset conversions and retrives
                             content from the server byte for byte
     --buffer <arg>          buffer size for binary mode (default 1024)
     --content-type <arg>    force content type
@@ -73,9 +72,19 @@ Options:
  -o,--out-file <arg>        write response body to file
  -p,--ssl-protocol <arg>    protocol to intialize SSLContext
  -s,--silent                silences progress messages
+    --save-certs <arg>      save server's certs to file
+    --save-chain <arg>      how many certs of the chain to save (default
+                            all)
+    --save-pass <arg>       password for saved keystore
+    --save-type <arg>       type of saved keystore
     --skip-headers          in socket mode, omit headers from out-file
     --storepass <arg>       password to open keystore
+    --trustpass <arg>       trust store password
+    --truststore <arg>      custom trust store for server certs, if any
+ -w,--wget                  auto-download file with name taken from url
  -X,--request <arg>         force request method
+ -z,--ping                  just determine if the port is open, don't send
+                            any data
 
 Examples:
 

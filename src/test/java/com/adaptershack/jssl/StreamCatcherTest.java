@@ -15,7 +15,7 @@ public class StreamCatcherTest {
 	@Rule
 	public StreamCatcher streams = new StreamCatcher(false);	
 	
-	String newline = System.getProperty("line.separator");
+	String newline = System.lineSeparator();
 			
 	@Test
 	public void testOutCaptured() {

@@ -45,10 +45,6 @@ import static org.hamcrest.CoreMatchers.*;
  * it is detected that the server isn't listening (such as 
  * might happen if the OS won't allow it to run).
  * 
- * A few tests use real internet connectivity to external
- * servers. These will also skip, if there is no internet
- * access available.
- * 
  */
 public class MainTest 
 {
@@ -66,6 +62,8 @@ public class MainTest
 	  WireMockConfiguration.wireMockConfig()
 	  .port(9090)
 	  .httpsPort(9091)
+	  .keystorePath("test-certs/server-ks")
+	  .keystorePassword("changeit")
 	);
 
 	@ClassRule
@@ -73,6 +71,8 @@ public class MainTest
 	  WireMockConfiguration.wireMockConfig()
 	  .httpsPort(9092)
 	  .needClientAuth(true)
+	  .keystorePath("test-certs/server-ks")
+	  .keystorePassword("changeit")
 	  .trustStorePath("test-certs/server-cacerts")
 	  .trustStorePassword("changeit")
 	);
@@ -283,22 +283,22 @@ public class MainTest
 		
 		KeyStore ks = KeyStore.getInstance("pkcs12");
 		ks.load(new ByteArrayInputStream(content), randpass.toCharArray());
-		
-		for(String alias : Collections.list(ks.aliases())) {
+		ArrayList<String> list = Collections.list(ks.aliases());
+		assertThat( list.size(), is(2));
+		for(String alias : list) {
 			assertThat(streams.outText().toLowerCase(), containsString("alias [" + alias + "]"));
 		}
 		
 		Files.deleteIfExists(Paths.get(temp));
 	}
 	
-	// uses a real website for the chain of certs
 	@Test
 	public void testSavePKCS12OneCert() throws Exception {
 		String randpass = UUID.randomUUID().toString();
 		String temp = File.createTempFile("junit", "tmp").getAbsolutePath();
 		Files.deleteIfExists(Paths.get(temp));
 
-		assumeAndRun("https://www.example.com","-i","-n",
+		assumeAndRun("https://localhost:9091","-k","-i","-n",
 				"--save-certs", temp, "--save-type","pkcs12",
 				"--save-pass",randpass,"--save-chain","1");
 		
