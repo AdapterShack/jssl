@@ -735,37 +735,37 @@ public class AppTest
 	
 	@Test(expected=SSLHandshakeException.class)
 	public void testHandshakeFail() throws Exception {
-		assumeAndRun("https://self.adaptershack.com");
+		assumeAndRun("https://localhost:9091");
 	}
 
 	@Test(expected=SSLHandshakeException.class)
 	public void testHandshakeFailSSL() throws Exception {
-		assumeAndRun("ssl://self.adaptershack.com","-d",
-				"GET / HTTP/1.1\nHost: self.adaptershack.com\nConnection: close\n\n");
+		assumeAndRun("ssl://localhost:9091","-d",
+				"GET / HTTP/1.1\nHost: localhost:9091\nConnection: close\n\n");
 	}
 	
 	@Test
 	public void testTrustAll() throws Exception {
-		assumeAndRun("https://self.adaptershack.com","-k");
+		assumeAndRun("https://localhost:9091","-k");
 	}
 	
 	@Test
 	public void testTrustAllLong() throws Exception {
-		assumeAndRun("https://self.adaptershack.com","--insecure");
+		assumeAndRun("https://localhost:9091","--insecure");
 	}
 
 	@Test
 	public void testTrustAllSSL() throws Exception {
-		assumeAndRun("ssl://self.adaptershack.com","-k","-d",
-				"GET / HTTP/1.1\nHost: self.adaptershack.com\nConnection: close\n\n");
+		assumeAndRun("ssl://localhost:9091","-k","-d",
+				"GET / HTTP/1.1\nHost: localhost:9091\nConnection: close\n\n");
 		assertSocketConnected();
 		assertGoodHtml();
 	}
 	
 	@Test
 	public void testTrustAllSSLLong() throws Exception {
-		assumeAndRun("ssl://self.adaptershack.com","--insecure","-d",
-				"GET / HTTP/1.1\nHost: self.adaptershack.com\nConnection: close\n\n");
+		assumeAndRun("ssl://localhost:9091","--insecure","-d",
+				"GET / HTTP/1.1\nHost: localhost:9091\nConnection: close\n\n");
 		assertSocketConnected();	
 		assertGoodHtml();
 		
