@@ -60,7 +60,7 @@ public class MainTest
 	// capture standard in, out, error
 	@Rule
 	public StreamCatcher streams = new StreamCatcher(false);	
-	
+
 	@ClassRule
 	public static WireMockRule wireMockRule = new WireMockRule(
 	  WireMockConfiguration.wireMockConfig()
@@ -68,6 +68,15 @@ public class MainTest
 	  .httpsPort(9091)
 	);
 
+	@ClassRule
+	public static WireMockRule wireMockRuleClientCerts = new WireMockRule(
+	  WireMockConfiguration.wireMockConfig()
+	  .httpsPort(9092)
+	  .needClientAuth(true)
+	  .trustStorePath("test-certs/server-cacerts")
+	  .trustStorePassword("changeit")
+	);
+	
 	// we use jetty directly (not via wiremock) to handle basic auth
 	@ClassRule
 	public static JettyRule jetty = new JettyRule(9093);
@@ -183,17 +192,6 @@ public class MainTest
 	}
 
 
-	
-	
-	@Rule
-	public WireMockRule wireMockRuleClientCerts = new WireMockRule(
-	  WireMockConfiguration.wireMockConfig()
-	  .httpsPort(9092)
-	  .needClientAuth(true)
-	  .trustStorePath("test-certs/server-cacerts")
-	  .trustStorePassword("changeit")
-	);
-	
 	
 	@Test
 	public void testClientCerts() throws Exception {
