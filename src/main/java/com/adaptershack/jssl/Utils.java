@@ -268,7 +268,7 @@ public class Utils {
 			stdout.print(prompt);
 			try {
 				return 
-					new BufferedReader(new InputStreamReader(stdin))
+					new BufferedReader(new InputStreamReader(stdin),1)
 					.readLine();
 			} catch (IOException e) {
 				e.printStackTrace();

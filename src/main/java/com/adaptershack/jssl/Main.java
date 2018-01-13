@@ -40,6 +40,7 @@ public class Main  {
 		options.addOption(null,"save-type",true,"type of saved keystore");
 		options.addOption(null,"save-chain",true,"how many certs of the chain to save (default all)");
 		options.addOption("z","ping",false,"just determine if the port is open, don't send any data"); 
+		options.addOption("a","no-auth",false,"disable HTTP Basic auth"); 
 		
 		// options only for HTTP(s)
 		options.addOption(null, "content-type", true, "force content type");
@@ -107,6 +108,8 @@ public class Main  {
         client.setPing(cmdLine.hasOption("ping"));
         client.setTrustStore(cmdLine.getOptionValue("truststore"));
         client.setTrustpass(cmdLine.getOptionValue("trustpass"));
+
+        client.setNoAuth(cmdLine.hasOption("no-auth"));
         
         String urlString = cmdLine.getArgList().get(0);
 

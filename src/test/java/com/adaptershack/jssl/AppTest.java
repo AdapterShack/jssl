@@ -13,16 +13,26 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.io.UnsupportedEncodingException;
+import java.net.Authenticator;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.KeyStore;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.UUID;
 import java.util.zip.GZIPOutputStream;
 
 import javax.net.ssl.SSLHandshakeException;
+import javax.servlet.Servlet;
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServlet;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 
+import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.servlet.ServletContextHandler;
+import org.eclipse.jetty.servlet.ServletHolder;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -127,9 +137,7 @@ public class AppTest
 					));
 		
 	}
-	
-	
-	
+		
 	@Test
 	public void testSimpleHttp() throws Exception {
 		testHTML("http://localhost:9090");
@@ -141,6 +149,73 @@ public class AppTest
 	}
 
 
+
+	public Server getAuthJetty() {
+		@SuppressWarnings("serial")
+		Server server = getJetty(
+    		new HttpServlet() {
+    			@Override
+    			protected void service(HttpServletRequest req, HttpServletResponse res)
+    					throws ServletException, IOException {
+ 
+    				String expected = "Basic " + Base64.getEncoder().encodeToString(
+    						"user:password".getBytes());
+		
+    				if( ! expected.equals(req.getHeader("Authorization"))) {
+    					res.setHeader("WWW-Authenticate", "Basic realm=\"Members Area\"");
+    					res.sendError(401);
+    				} else {
+    					res.setContentType("text/html); charset=utf-8");
+    					res.getWriter().print(html);
+    				}
+    			}
+    		}
+	    );
+		return server;
+	}
+
+	public Server getJetty(Servlet servlet) {
+		Server server = new Server(9093);
+	    ServletContextHandler context = new ServletContextHandler();
+	    ServletHolder defaultServ = new ServletHolder();
+	    defaultServ.setServlet(servlet);
+	    context.addServlet(defaultServ,"/");
+	    server.setHandler(context);
+		return server;
+	}
+	
+	@Test
+	public void testBasicAuthOnUrl() throws Exception {
+		this.assumeAndRun("http://user:password@localhost:9093","-i");
+		this.assertGoodHtmlWithHeaders();
+	}
+
+	@Test
+	public void testBasicAuthOnPrompted() throws Exception {
+
+		System.setIn( new ByteArrayInputStream(
+				"password\n".getBytes()));
+				
+		this.assumeAndRun("http://user@localhost:9093","-i");
+		this.assertGoodHtmlWithHeaders();
+	}
+
+
+	
+	Server jetty = getAuthJetty();
+	
+	@Before
+	public void runAuth() throws Exception {
+		jetty.start();
+	}
+	
+	@After
+	public void stopAuth() throws Exception {
+		jetty.stop();
+	}
+	
+	
+	
 	@Rule
 	public WireMockRule wireMockRuleClientCerts = new WireMockRule(
 	  WireMockConfiguration.wireMockConfig()

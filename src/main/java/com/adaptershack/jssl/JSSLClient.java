@@ -113,6 +113,7 @@ public class JSSLClient {
 	private int saveChainLength = -1;
 	
 	private boolean ping;
+	private boolean noAuth;
 	
 	
 
@@ -267,8 +268,10 @@ public class JSSLClient {
 
 	private void doURL(String urlString) throws IOException, MalformedURLException, Exception {
 
-		Authenticator.setDefault(new CustomAuthenticator());
-
+		if(!noAuth) {
+			Authenticator.setDefault(new CustomAuthenticator());
+		}
+		
 		log("executing URL: %s", urlString);
 		
 		HttpURLConnection connection = (HttpURLConnection)
@@ -986,6 +989,18 @@ public class JSSLClient {
 		if(s != null) {
 			this.trustpass = s.toCharArray();
 		}
+	}
+
+
+
+	public boolean isNoAuth() {
+		return noAuth;
+	}
+
+
+
+	public void setNoAuth(boolean noAuth) {
+		this.noAuth = noAuth;
 	}
 
 	
