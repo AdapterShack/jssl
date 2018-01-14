@@ -49,4 +49,18 @@ public class StreamCatcherTest {
 		
 	}
 
+	@Test
+	public void testReset() {
+
+		System.out.println("hello");
+		assertEquals("hello"+newline, streams.outText());
+
+		streams.reset();
+		
+		System.out.println("world");
+		assertEquals("world"+newline, streams.outText());
+		
+		
+	}
+	
 }

@@ -15,8 +15,8 @@ import org.junit.rules.ExternalResource;
  */
 public class StreamCatcher extends ExternalResource {
 
-	private final ByteArrayOutputStream capturedOut = new ByteArrayOutputStream();
-	private final ByteArrayOutputStream capturedErr = new ByteArrayOutputStream();
+	private ByteArrayOutputStream capturedOut;
+	private ByteArrayOutputStream capturedErr;
 
 	private final static PrintStream realSystemOut = System.out;
 	private final static PrintStream realSystemErr = System.err;
@@ -37,6 +37,13 @@ public class StreamCatcher extends ExternalResource {
 	@Override
 	protected void before() throws Throwable {
 		super.before();
+		reset();
+	}
+	
+	public void reset() {
+
+		capturedOut = new ByteArrayOutputStream();		
+		capturedErr = new ByteArrayOutputStream();		
 		
 		System.setOut(new PrintStream( tee ? 
 			new OutputStream() {

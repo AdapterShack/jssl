@@ -12,8 +12,10 @@ import java.io.OutputStream;
 import java.io.PrintStream;
 import java.net.Authenticator;
 import java.net.HttpURLConnection;
+import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
 import java.net.PasswordAuthentication;
+import java.net.Proxy;
 import java.net.Socket;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -114,6 +116,8 @@ public class JSSLClient {
 	
 	private boolean ping;
 	private boolean noAuth;
+	private String proxy;
+	private boolean socks;
 	
 	
 
@@ -273,13 +277,15 @@ public class JSSLClient {
 		}
 		
 		log("executing URL: %s", urlString);
-		
+
 		HttpURLConnection connection = (HttpURLConnection)
-				new URL(urlString).openConnection();
+				( proxy != null ? 
+						new URL(urlString).openConnection(createProxy()) :
+						new URL(urlString).openConnection());
 		
 		connection.setUseCaches(useCaches);
 		connection.setInstanceFollowRedirects(followRedirects);
-
+		
 		if(connection instanceof HttpsURLConnection) {
 			((HttpsURLConnection) connection).setSSLSocketFactory(socketFactory);
 		}		
@@ -381,6 +387,35 @@ public class JSSLClient {
 		stdout.flush();
 		
 	}
+
+
+	private Proxy createProxy() {
+		
+		if(proxy == null) {
+			return null;
+		}
+		
+		String proxyHost;
+		int proxyPort;
+		
+		if(proxy.contains(":")) {
+			String[] parts = proxy.split(":",2);
+			proxyHost = parts[0];
+			proxyPort = Integer.parseInt(parts[1]);
+		} else {
+			proxyHost = proxy;
+			proxyPort = port;
+		}
+	
+		Log.log("Proxy host %s port %d", proxyHost, proxyPort);
+		
+		return new Proxy( socks ?
+				Proxy.Type.SOCKS : Proxy.Type.HTTP,
+				new InetSocketAddress(proxyHost,proxyPort)
+			);
+		
+	}
+
 
 
 	public void saveCerts(Certificate[] chain) throws KeyStoreException, IOException, NoSuchAlgorithmException,
@@ -1001,6 +1036,30 @@ public class JSSLClient {
 
 	public void setNoAuth(boolean noAuth) {
 		this.noAuth = noAuth;
+	}
+
+
+
+	public String getProxy() {
+		return proxy;
+	}
+
+
+
+	public void setProxy(String proxy) {
+		this.proxy = proxy;
+	}
+
+
+
+	public boolean isSocks() {
+		return socks;
+	}
+
+
+
+	public void setSocks(boolean socks) {
+		this.socks = socks;
 	}
 
 	

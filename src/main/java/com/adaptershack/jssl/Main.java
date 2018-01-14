@@ -59,7 +59,11 @@ public class Main  {
 
 		options.addOption(null,"download",true,"print only headers, write only body to file "
 				+ "(equivalent to -i -n -o for http, -b -n --skip-headers -o for socket)");
-		
+
+		options.addOption(null,"debug",false,"turn on SSL debugging (equivalent to -Djavax.ssl.debug=all");
+
+		options.addOption("x","proxy",true,"use proxy host:port");
+		options.addOption(null,"socks",false,"indicates proxy is a SOCKS v4 or v5 proxy");
 		
         DefaultParser parser = new DefaultParser();
         
@@ -70,6 +74,10 @@ public class Main  {
         	return;
         }
 
+        if(cmdLine.hasOption("debug")) {
+        	System.setProperty("javax.net.debug","all");
+        }
+        
         Log.setQuiet(cmdLine.hasOption("s"));
         
         JSSLClient client = new JSSLClient();
@@ -110,6 +118,8 @@ public class Main  {
         client.setTrustpass(cmdLine.getOptionValue("trustpass"));
 
         client.setNoAuth(cmdLine.hasOption("no-auth"));
+        client.setProxy(cmdLine.getOptionValue("proxy"));
+        client.setSocks(cmdLine.hasOption("socks"));
         
         String urlString = cmdLine.getArgList().get(0);
 

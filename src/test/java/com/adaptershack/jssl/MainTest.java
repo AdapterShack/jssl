@@ -76,6 +76,15 @@ public class MainTest
 	  .trustStorePath("test-certs/server-cacerts")
 	  .trustStorePassword("changeit")
 	);
+
+	@ClassRule
+	public static WireMockRule wireMockProxy = new WireMockRule(
+	  WireMockConfiguration.wireMockConfig()
+	  .port(9094)
+	  .enableBrowserProxying(true)
+	  );
+		
+	
 	
 	// we use jetty directly (not via wiremock) to handle basic auth
 	@ClassRule
@@ -767,6 +776,14 @@ public class MainTest
 	}
 	
 	
+	@Test
+	public void testProxy() throws Exception {
+		testHTML("http://localhost:9090","-k","-i","-x","localhost:9094");
+		wireMockProxy.verify(getRequestedFor(urlPathMatching(".*")));
+		assertThat(streams.outText(),containsString("Proxy host localhost port 9094"));
+	}
+	
+	
 	public void testPing(String...args) throws Exception {
 		assumeAndRun(args);
 		assertThat("Port open",
@@ -774,6 +791,7 @@ public class MainTest
 				containsString("is open"));
 	}
 
+	
 	
 	public void testPingLong() throws Exception {
 		assumeAndRun("https://localhost:9091","-ping");
