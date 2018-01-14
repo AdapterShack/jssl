@@ -50,6 +50,31 @@ public class StreamCatcherTest {
 	}
 
 	@Test
+	public void testIn2() throws IOException {
+		
+		streams.in().println("Hello");
+		streams.in().println("World");
+		
+		byte[] peek = streams.peek();
+		assertEquals( "Hello"+newline+"World"+newline, new String(peek));
+		
+		assertEquals( peek.length, System.in.available());
+		
+		BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+
+		assertEquals("Hello", br.readLine());
+		assertEquals("World", br.readLine());
+		assertEquals(null, br.readLine());
+
+		streams.in().println("Goodnight");
+		
+		assertEquals("Goodnight", br.readLine());
+		
+	}
+	
+	
+	
+	@Test
 	public void testReset() {
 
 		System.out.println("hello");

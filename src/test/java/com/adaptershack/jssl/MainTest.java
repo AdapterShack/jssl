@@ -33,6 +33,7 @@ import org.junit.Test;
 
 import com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder;
 import com.github.tomakehurst.wiremock.junit.WireMockRule;
+import com.github.tomakehurst.wiremock.stubbing.ServeEvent;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
@@ -215,10 +216,6 @@ public class MainTest
 	@Test
 	public void testCustomCacerts() throws Exception {
 
-		wireMockRuleClientCerts.stubFor(
-				get(urlPathEqualTo("/"))
-				.willReturn(withBody));
-				
 		testHTML("https://localhost:9091","--truststore","test-certs/client-cacerts","--trustpass","changeit");
 	}
 	
@@ -779,7 +776,7 @@ public class MainTest
 	@Test
 	public void testProxy() throws Exception {
 		testHTML("http://localhost:9090","-k","-i","-x","localhost:9094");
-		wireMockProxy.verify(getRequestedFor(urlPathMatching(".*")));
+		wireMockProxy.verify(getRequestedFor(anyUrl()));
 		assertThat(streams.outText(),containsString("Proxy host localhost port 9094"));
 	}
 	
@@ -792,7 +789,7 @@ public class MainTest
 	}
 
 	
-	
+	@Test
 	public void testPingLong() throws Exception {
 		assumeAndRun("https://localhost:9091","-ping");
 	}

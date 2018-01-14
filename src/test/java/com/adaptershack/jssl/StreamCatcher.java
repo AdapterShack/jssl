@@ -1,11 +1,13 @@
 package com.adaptershack.jssl;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
+import java.util.ArrayDeque;
+import java.util.Queue;
+
 import org.junit.rules.ExternalResource;
 
 /**
@@ -38,6 +40,21 @@ public class StreamCatcher extends ExternalResource {
 	protected void before() throws Throwable {
 		super.before();
 		reset();
+
+		System.setIn(
+			new InputStream() {
+				@Override
+				public int read() throws IOException {
+					return queue.isEmpty() ?
+							-1 : (int) queue.remove();
+				}
+
+				@Override
+				public int available() throws IOException {
+					return queue.size();
+				}
+			}
+		);
 	}
 	
 	public void reset() {
@@ -61,6 +78,8 @@ public class StreamCatcher extends ExternalResource {
 					capturedErr.write(b);
 				}
 		} : capturedErr ));
+
+		this.queue.clear();
 		
 	}
 
@@ -88,13 +107,53 @@ public class StreamCatcher extends ExternalResource {
 		return new String(capturedErr.toByteArray());		
 	}
 	
-	public void setIn(final byte[] buffer) {
-		System.setIn( new ByteArrayInputStream(buffer));
+	public void setIn(final byte[] buffer) throws IOException {
+		queue.clear();
+		printer.write(buffer);
 	}
 	
 	public void setIn(String buffer) {
-		setIn(buffer.getBytes());
+		printer.print(buffer);
 	}
+	
+	public PrintStream realOut() {
+		return realSystemOut;
+	}
+
+	public PrintStream realErr() {
+		return realSystemErr;
+	}
+	
+	public InputStream realIn() {
+		return realSystemIn;
+	}
+	
+	public PrintStream in() {
+		return printer;
+	}
+	
+	final Queue<Byte> queue = new ArrayDeque<>();
+		
+	final PrintStream printer = new PrintStream(
+		new OutputStream() {
+			@Override
+			public void write(int b) throws IOException {
+				queue.add((byte)b);
+			}
+		}			
+	);
+	
+	public byte[] peek() {
+
+		ByteArrayOutputStream bout = new ByteArrayOutputStream();
+		
+		for( byte b : queue ) {
+			bout.write((int)b);
+		}
+		
+		return bout.toByteArray();
+	}
+	
 	
 
 }
