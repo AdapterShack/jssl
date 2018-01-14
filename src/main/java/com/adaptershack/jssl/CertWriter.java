@@ -15,9 +15,9 @@ import java.security.cert.X509Certificate;
 import java.util.Base64;
 import java.util.Base64.Encoder;
 
-abstract class CertWriter {
+interface CertWriter {
 
-	public static CertWriter getInstance(String type) throws KeyStoreException {
+	static CertWriter getInstance(String type) throws KeyStoreException {
 		 if( type.equalsIgnoreCase("PEM") ) {
 			 return new PemWriter(false);
 		 } else if (type.equalsIgnoreCase("TEXT")) {
@@ -38,7 +38,7 @@ abstract class CertWriter {
 	abstract boolean supportsPassword();
 	
 	
-	private static class KeyStoreWriter extends CertWriter {
+	class KeyStoreWriter implements CertWriter {
 		
 		KeyStore impl;
 
@@ -69,7 +69,7 @@ abstract class CertWriter {
 	}
 	
 	
-	private static class PemWriter extends CertWriter {
+	class PemWriter implements CertWriter {
 
 		ByteArrayOutputStream buffer = new ByteArrayOutputStream();
 		boolean verbose;
