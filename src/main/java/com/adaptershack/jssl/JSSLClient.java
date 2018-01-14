@@ -391,10 +391,6 @@ public class JSSLClient {
 
 	private Proxy createProxy() {
 		
-		if(proxy == null) {
-			return null;
-		}
-		
 		String proxyHost;
 		int proxyPort;
 		
@@ -403,8 +399,7 @@ public class JSSLClient {
 			proxyHost = parts[0];
 			proxyPort = Integer.parseInt(parts[1]);
 		} else {
-			proxyHost = proxy;
-			proxyPort = port;
+			throw new IllegalArgumentException("Proxy must be host:port");
 		}
 	
 		Log.log("Proxy host %s port %d", proxyHost, proxyPort);

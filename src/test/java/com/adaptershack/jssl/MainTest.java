@@ -33,7 +33,6 @@ import org.junit.Test;
 
 import com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder;
 import com.github.tomakehurst.wiremock.junit.WireMockRule;
-import com.github.tomakehurst.wiremock.stubbing.ServeEvent;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.*;
@@ -176,6 +175,18 @@ public class MainTest
 	}
 		
 	@Test
+	public void testPrintUsage() throws Exception {
+	
+		Main.main();
+		
+		assertThat( streams.outText(),
+				containsString("usage: java -jar [this-jar-file] [options] url"));
+	
+	}
+	
+	
+	
+	@Test
 	public void testSimpleHttp() throws Exception {
 		testHTML("http://localhost:9090");
 	}
@@ -211,7 +222,22 @@ public class MainTest
 				.willReturn(withBody));
 		
 		testHTML("https://localhost:9092","-k","--keystore","test-certs/client-ks","--keypass","changeit");
+		
 	}
+
+	@Test
+	public void testClientCertsAlias() throws Exception {
+
+		wireMockRuleClientCerts.stubFor(
+				get(urlPathEqualTo("/"))
+				.willReturn(withBody));
+		
+		testHTML("https://localhost:9092","-k","--keystore","test-certs/client-ks","--keypass","changeit", "-alias","1");
+		
+		assertThat( streams.outText(), containsString("chooseClientAlias: returning: 1"));
+	}
+	
+	
 	
 	@Test
 	public void testCustomCacerts() throws Exception {
@@ -231,7 +257,7 @@ public class MainTest
 	}
 
 	@Test
-	public void testHeaders() throws Exception {
+	public void testPrintHeaders() throws Exception {
 		assumeAndRun("http://localhost:9090","-i");
 		assertGoodHtmlWithHeaders();
 	}
@@ -246,8 +272,14 @@ public class MainTest
 		assumeAndRun("http://localhost:9090","-i","-n");
 		assertHeadersOnly();
 	}
+
+	@Test
+	public void testSetHeaders() throws Exception {
+		assumeAndRun("http://localhost:9090","-i","-H","X-1: 1: 10","-H","X-2: 2","-H","malformed");
+		assertGoodHtmlWithHeaders();
+	}
 	
-	// uses a real domain
+	
 	@Test
 	public void testSavePEM() throws Exception {
 		String temp = File.createTempFile("junit", "tmp").getAbsolutePath();
@@ -297,6 +329,82 @@ public class MainTest
 		
 		Files.deleteIfExists(Paths.get(temp));
 	}
+
+	
+	@Test
+	public void testSaveJKS() throws Exception {
+		String randpass = UUID.randomUUID().toString();
+		String temp = File.createTempFile("junit", "tmp").getAbsolutePath();
+		Files.deleteIfExists(Paths.get(temp));
+
+		assumeAndRun("https://localhost:9091","-k","-i",
+				"--save-certs", temp, "--save-type","jks",
+				"--save-pass",randpass);
+		
+		assertGoodHtmlWithHeaders();
+		byte[] content = Files.readAllBytes(Paths.get(temp));
+		
+		KeyStore ks = KeyStore.getInstance("jks");
+		ks.load(new ByteArrayInputStream(content), randpass.toCharArray());
+		ArrayList<String> list = Collections.list(ks.aliases());
+		assertThat( list.size(), is(2));
+		for(String alias : list) {
+			assertThat(streams.outText().toLowerCase(), containsString("alias [" + alias + "]"));
+		}
+		
+		Files.deleteIfExists(Paths.get(temp));
+	}
+
+	@Test
+	public void testSaveCertsAndUseAsTrustStore() throws Exception {
+		String randpass = UUID.randomUUID().toString();
+		String temp = File.createTempFile("junit", "tmp").getAbsolutePath();
+		Files.deleteIfExists(Paths.get(temp));
+
+		assumeAndRun("https://localhost:9091","-k","-i",
+				"--save-certs", temp, "--save-type","jks",
+				"--save-pass",randpass);
+		
+		assertGoodHtmlWithHeaders();
+		
+		streams.reset();
+		
+		assumeAndRun("https://localhost:9091","-i",
+				"--truststore", temp,
+				"--trustpass",randpass);
+		
+		assertGoodHtmlWithHeaders();
+		
+		Files.deleteIfExists(Paths.get(temp));
+	}
+	
+	
+	@Test
+	public void testSavePKCS12PassPrompt() throws Exception {
+		String randpass = UUID.randomUUID().toString();
+		String temp = File.createTempFile("junit", "tmp").getAbsolutePath();
+		Files.deleteIfExists(Paths.get(temp));
+
+		streams.in().println(randpass);
+		
+		assumeAndRun("https://localhost:9091","-k","-i",
+				"--save-certs", temp, "--save-type","pkcs12");
+		
+		assertGoodHtmlWithHeaders();
+		byte[] content = Files.readAllBytes(Paths.get(temp));
+		
+		KeyStore ks = KeyStore.getInstance("pkcs12");
+		ks.load(new ByteArrayInputStream(content), randpass.toCharArray());
+		ArrayList<String> list = Collections.list(ks.aliases());
+		assertThat( list.size(), is(2));
+		for(String alias : list) {
+			assertThat(streams.outText().toLowerCase(), containsString("alias [" + alias + "]"));
+		}
+		
+		Files.deleteIfExists(Paths.get(temp));
+	}
+	
+	
 	
 	@Test
 	public void testSavePKCS12OneCert() throws Exception {
@@ -316,6 +424,31 @@ public class MainTest
 		
 		ArrayList<String> list = Collections.list(ks.aliases());
 		assertThat( list.size(), is(1));
+		for(String alias : list) {
+			assertThat(streams.outText().toLowerCase(), containsString("alias [" + alias + "]"));
+		}
+		
+		Files.deleteIfExists(Paths.get(temp));
+	}
+
+	@Test
+	public void testSavePKCS12FromSocket() throws Exception {
+		String randpass = UUID.randomUUID().toString();
+		String temp = File.createTempFile("junit", "tmp").getAbsolutePath();
+		Files.deleteIfExists(Paths.get(temp));
+
+		assumeAndRun("ssl://localhost:9091","-k","-d",
+				"GET / HTTP/1.1\nHost: localhost:9091\nConnection: close\n\n",
+				"--save-certs", temp, "--save-type","pkcs12",
+				"--save-pass",randpass);
+		
+		assertGoodHtmlWithHeaders();
+		byte[] content = Files.readAllBytes(Paths.get(temp));
+		
+		KeyStore ks = KeyStore.getInstance("pkcs12");
+		ks.load(new ByteArrayInputStream(content), randpass.toCharArray());
+		ArrayList<String> list = Collections.list(ks.aliases());
+		assertThat( list.size(), is(2));
 		for(String alias : list) {
 			assertThat(streams.outText().toLowerCase(), containsString("alias [" + alias + "]"));
 		}
@@ -469,7 +602,7 @@ public class MainTest
 			            .withStatus(200)
 			            .withBody("{'success':true}")));
 
-		assumeAndRun("http://localhost:9090/login","-i","-d",json);
+		assumeAndRun("http://localhost:9090/login","-i","-f",temp);
 		assertThat( streams.outText(), containsString("HTTP/1.1 200 OK"));
 		assertThat( streams.outText(), containsString("Content-Type: application/json"));
 		assertThat( streams.outText(), containsString("{'success':true}"));
@@ -609,7 +742,54 @@ public class MainTest
 		assertSocketConnected();
 		assertGoodHtmlWithHeaders();
 	}
+	
+	@Test
+	public void testSSLFromFile() throws Exception {
+	
+		String temp = File.createTempFile("junit", "tmp").getAbsolutePath();
 
+		try(FileOutputStream f = new FileOutputStream(temp)) {
+			f.write("GET / HTTP/1.1\nHost: localhost:9091\nConnection: close\n\n".getBytes());
+		}
+		
+		assumeAndRun("ssl://localhost:9091","-k","-f",temp);
+		assertGoodHtmlWithHeaders();
+		Files.deleteIfExists(Paths.get(temp));
+		
+	}
+
+	@Test
+	public void testSSLFromFileCRLF() throws Exception {
+	
+		String temp = File.createTempFile("junit", "tmp").getAbsolutePath();
+
+		try(FileOutputStream f = new FileOutputStream(temp)) {
+			f.write("GET / HTTP/1.1\nHost: localhost:9091\nConnection: close\n\n".getBytes());
+		}
+		
+		assumeAndRun("ssl://localhost:9091","-k","-f",temp,"--crlf");
+		assertGoodHtmlWithHeaders();
+		Files.deleteIfExists(Paths.get(temp));
+		
+	}
+	
+	
+	@Test
+	public void testSSLFromStdinCRLF() throws Exception {
+		streams.setIn("GET / HTTP/1.1\nHost: localhost:9091\nConnection: close\n\n".getBytes());
+		assumeAndRun("ssl://localhost:9091","-k","--crlf");
+		assertSocketConnected();
+		assertGoodHtmlWithHeaders();
+	}
+	
+	@Test
+	public void testSSLWithDataCRLF() throws Exception {
+		assumeAndRun("ssl://localhost:9091","-k","--crlf","-d",
+				"GET / HTTP/1.1\nHost: localhost:9091\nConnection: close\n\n");
+		assertSocketConnected();
+		assertGoodHtmlWithHeaders();
+	}
+	
 	@Test
 	public void testSSLFromStdinNoBody() throws Exception {
 		streams.setIn("GET / HTTP/1.1\r\nHost: localhost:9091\r\nConnection: close\r\n\r\n".getBytes());
@@ -778,6 +958,11 @@ public class MainTest
 		testHTML("http://localhost:9090","-k","-i","-x","localhost:9094");
 		wireMockProxy.verify(getRequestedFor(anyUrl()));
 		assertThat(streams.outText(),containsString("Proxy host localhost port 9094"));
+	}
+
+	@Test(expected=IllegalArgumentException.class)
+	public void testProxyError() throws Exception {
+		testHTML("http://localhost:9090","-k","-i","-x","localhost");
 	}
 	
 	
