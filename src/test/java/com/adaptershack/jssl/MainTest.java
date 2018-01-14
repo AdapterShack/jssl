@@ -192,6 +192,37 @@ public class MainTest
 	}
 
 	@Test
+	public void test404() throws Exception {
+		
+		wireMockRule.stubFor(
+				get(urlPathEqualTo("/does-not-exist"))
+				.willReturn(
+					aResponse()
+					.withStatus(404)
+					.withHeader("Content-Type", "text/plain")
+					.withBody( "Not found".getBytes() )
+					));		
+		
+		assumeAndRun("http://localhost:9090/does-not-exist","-i");
+		assertThat(streams.outText(), containsString("HTTP/1.1 404"));
+	}
+
+	@Test
+	public void test404NoBody() throws Exception {
+		
+		wireMockRule.stubFor(
+				get(urlPathEqualTo("/does-not-exist"))
+				.willReturn(
+					aResponse()
+					.withStatus(404)
+					));		
+		
+		assumeAndRun("http://localhost:9090/does-not-exist","-i");
+		assertThat(streams.outText(), containsString("HTTP/1.1 404"));
+	}
+	
+	
+	@Test
 	public void testSimpleHttps() throws Exception {
 		testHTML("https://localhost:9091","-k");
 	}
