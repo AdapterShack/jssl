@@ -17,6 +17,7 @@ class TwoLevelTrustManager implements X509TrustManager {
 	
 	public TwoLevelTrustManager(X509TrustManager impl, TrustManager[] keystoreTM) {
 		tms.add(impl);
+		
 		for( TrustManager tm : keystoreTM ) {
 			if(tm instanceof X509TrustManager) {
 				tms.add((X509TrustManager) tm);
@@ -24,6 +25,7 @@ class TwoLevelTrustManager implements X509TrustManager {
 		}
 	}
 
+	@FunctionalInterface
 	private interface Checker {
 		void check(X509TrustManager tm) throws CertificateException;
 	}
@@ -37,32 +39,22 @@ class TwoLevelTrustManager implements X509TrustManager {
 				Log.log(e.toString());
 			}
 		}
-		throw new CertificateException("No trust manager was able to checkClientTrusted");
+		throw new CertificateException("No trust manager was able to validate the certificate");
 	}
 
 	
 	@Override
 	public void checkClientTrusted(final X509Certificate[] chain, final String authType) throws CertificateException {
-		tryAll(new Checker() {
-			@Override
-			public void check(X509TrustManager tm) throws CertificateException {
-
-				tm.checkClientTrusted(chain, authType);
-				
-			}
-		});
+		tryAll(
+			tm -> tm.checkClientTrusted(chain, authType)
+		);
 	}
 
 	@Override
 	public void checkServerTrusted(final X509Certificate[] chain, final String authType) throws CertificateException {
-		tryAll(new Checker() {
-			@Override
-			public void check(X509TrustManager tm) throws CertificateException {
-
-				tm.checkServerTrusted(chain, authType);
-				
-			}
-		});
+		tryAll(
+			tm -> tm.checkServerTrusted(chain, authType)
+		);
 	}
 
 	@Override
