@@ -905,14 +905,14 @@ public class MainTest
 	public void testCRLFfromStdin() throws Exception {
 		streams.in().write(noCRLF.getBytes());
 		assumeAndRun("tcp://localhost:9095","--crlf");
-		assertThat(streams.outText(), containsString(goodResponse));
+		assertThat(streams.outText(), containsString("HTTP/1.1 200 OK"));
 	}
 	
 	@Test
 	public void testCRLFfromStdinAlreadyCRLF() throws Exception {
 		streams.in().write(withCRLF.getBytes());
 		assumeAndRun("tcp://localhost:9095","--crlf");
-		assertThat(streams.outText(), containsString(goodResponse));
+		assertThat(streams.outText(), containsString("HTTP/1.1 200 OK"));
 	}
 	
 	
