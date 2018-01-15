@@ -920,7 +920,7 @@ public class MainTest
 	public void testCRLFfromData() throws Exception {
 		streams.in().write(noCRLF.getBytes());
 		assumeAndRun("tcp://localhost:9095","--crlf","-d",noCRLF);
-		assertThat(streams.outText(), containsString(goodResponse));
+		assertThat(streams.outText(), containsString("HTTP/1.1 200 OK"));
 	}
 	
 	@Test
