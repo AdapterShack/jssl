@@ -1,13 +1,9 @@
 package com.adaptershack.jssl;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 import org.junit.rules.ExternalResource;
 
 public class SocketListener extends ExternalResource {
@@ -33,9 +29,7 @@ public class SocketListener extends ExternalResource {
 	public void before() {
 	
 		listenerThread = new Thread(
-			new Runnable() {
-				@Override
-				public void run() {
+				() -> {
 					try (
 						ServerSocket server = new ServerSocket(port)
 					) {
@@ -45,13 +39,9 @@ public class SocketListener extends ExternalResource {
 								Socket req = server.accept();
 								
 								new Thread(
-									new Runnable() {
-										@Override
-										public void run() {
+									() -> {
 											try {
-												
 												handler.handle(req);
-												
 											} catch (Exception e) {
 												e.printStackTrace();
 											} finally {
@@ -62,7 +52,6 @@ public class SocketListener extends ExternalResource {
 												}
 											}
 										}
-									}
 								).start();
 								
 							} finally {
@@ -73,7 +62,7 @@ public class SocketListener extends ExternalResource {
 						e.printStackTrace();
 					}
 				}
-			});
+			);
 		
 		listenerThread.start();
 	}
