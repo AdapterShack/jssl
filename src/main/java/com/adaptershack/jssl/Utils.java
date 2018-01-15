@@ -5,6 +5,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintStream;
 import java.net.HttpURLConnection;
@@ -22,6 +23,12 @@ public class Utils {
 	private static final int COPY_BUFFER = 1024*16;
 
 	public static byte[] readAll(HttpURLConnection connection, boolean useCharset) throws Exception {
+		ByteArrayOutputStream bout = new ByteArrayOutputStream();
+		readAll(connection,useCharset,bout);
+		return bout.toByteArray();
+	}
+	
+	public static void readAll(HttpURLConnection connection, boolean useCharset, OutputStream out) throws Exception {
 		try ( InputStream is = getStream(connection)) {
 	
 			String charset = getCharset(connection);
@@ -33,7 +40,7 @@ public class Utils {
 							charset,
 							System.getProperty("file.encoding"));
 					
-					return toByteArray(is, charset);
+					copy(is, charset, out);
 				
 				}	if( is != null) {
 					
@@ -41,11 +48,9 @@ public class Utils {
 						Log.log("Downloading server charset %s unmodified", charset);
 					}
 					
-					return toByteArray(is);
+					copy(is,out);
 		
-				} else {
-					return new byte[0];
-				}
+				} 
 			} finally {
 				if ( is instanceof CountingZipStream) {
 					@SuppressWarnings("resource")
@@ -61,12 +66,11 @@ public class Utils {
 		}
 	}
 	
-	public static byte[] toByteArray(InputStream is, String charset) throws Exception {
+	public static void copy(InputStream is, String charset,OutputStream out) throws Exception {
 		
-		ByteArrayOutputStream bis = new ByteArrayOutputStream();
-	
 		// this uses our system charset
-		OutputStreamWriter writer = new OutputStreamWriter(bis, System.getProperty("file.encoding"));
+		OutputStreamWriter writer = new OutputStreamWriter(out,
+				System.getProperty("file.encoding"));
 		
 		// this uses the charset from the HTTP response
 		InputStreamReader reader = new InputStreamReader(is,charset);
@@ -80,21 +84,23 @@ public class Utils {
 	
 		writer.flush();
 		
-		return bis.toByteArray();
 	}
 
-	public static byte[] toByteArray(InputStream is) throws IOException {
-		ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-	
+	public static void copy(InputStream is,OutputStream out) throws IOException {
 		int nRead;
 		byte[] data = new byte[COPY_BUFFER];
 	
 		while ((nRead = is.read(data, 0, data.length)) != -1) {
-		  buffer.write(data, 0, nRead);
+		  out.write(data, 0, nRead);
 		}
 	
-		buffer.flush();
+		out.flush();
+	}
 	
+	
+	public static byte[] toByteArray(InputStream is) throws IOException {
+		ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+		copy(is,buffer);
 		return buffer.toByteArray();		
 	}
 

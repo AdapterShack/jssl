@@ -195,8 +195,8 @@ public class JSSLClient {
 				saveCerts(certs);
 			}
 			
-			CountingStream counter =
-					fileOut == null ? null : new CountingStream(fileOut);
+			CountingOutputStream counter =
+					fileOut == null ? null : new CountingOutputStream(fileOut);
 
 			OutputStream copyOut =
 				counter == null ? null :
@@ -350,15 +350,21 @@ public class JSSLClient {
 			Certificate[] chain = ((HttpsURLConnection) connection).getServerCertificates();
 			saveCerts(chain);
 		}
-		
-		byte[] responseData = Utils.readAll(connection, !binary);
-		
-		//log("Read " + responseData.length + " bytes");
 
-		if(outFileName != null) {
-			try(FileOutputStream fout = new FileOutputStream(outFileName)) {
-				fout.write(responseData);
-				log("Wrote " + responseData.length + " bytes to " + outFileName);
+		boolean readWholeResponse = printBody && Log.enabled();
+		boolean streamBody = printBody && !readWholeResponse;
+		
+		byte[] wholeResponse = null;
+		
+		if(readWholeResponse) {
+			Log.log("Entire response will be read before printing");
+			wholeResponse = Utils.readAll(connection, !binary);
+			
+			if(outFileName != null) {
+				try(FileOutputStream fout = new FileOutputStream(outFileName)) {
+					fout.write(wholeResponse);
+					log("Wrote %d bytes to %s",wholeResponse.length,outFileName);
+				}
 			}
 		}
 		
@@ -380,10 +386,36 @@ public class JSSLClient {
 			}
 			stdout.println();
 		}
+
+		if(readWholeResponse) {
+			
+			stdout.write(wholeResponse);
+			
+		} else if(outFileName != null) {
+			
+			try(FileOutputStream fout = new FileOutputStream(outFileName)) {
+				final CountingOutputStream counter = new CountingOutputStream(fout);
+
+				OutputStream finalOut = printBody ? 
+					new OutputStream() {
+						@Override
+						public void write(int b) throws IOException {
+							counter.write(b);
+							stdout.write(b);
+						}
+				} : counter;
+
+				Utils.readAll(connection, !binary, finalOut);
+				log("Wrote %d bytes to %s",counter.getCount(),outFileName);
+			}
+			
+		} else if(streamBody) {
 		
-		if(printBody) {
-			stdout.write(responseData);
+			Utils.readAll(connection, !binary, stdout);
+		
 		}
+		
+		
 		stdout.flush();
 		
 	}

@@ -3,14 +3,14 @@ package com.adaptershack.jssl;
 import java.io.IOException;
 import java.io.OutputStream;
 
-public class CountingStream extends OutputStream {
+public class CountingOutputStream extends OutputStream {
 
 	int count = 0;
 	
 	OutputStream out;
 	
 	
-	public CountingStream(OutputStream out) {
+	public CountingOutputStream(OutputStream out) {
 		super();
 		this.out = out;
 	}

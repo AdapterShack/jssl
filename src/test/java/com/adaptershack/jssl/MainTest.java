@@ -1,5 +1,6 @@
 package com.adaptershack.jssl;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assume.assumeThat;
@@ -310,6 +311,19 @@ public class MainTest
 		assertGoodHtmlWithHeaders();
 	}
 	
+	@Test
+	public void testQuiet() throws Exception {
+		assumeAndRun("http://localhost:9090","-s");
+		assertEquals(html, streams.outText());
+	}
+
+	@Test
+	public void testQuietWithHeaders() throws Exception {
+		assumeAndRun("http://localhost:9090","-s","-i");
+		assertThat(streams.outText(), startsWith("HTTP/1.1 200"));
+		assertGoodHtmlWithHeaders();
+	}
+	
 	
 	@Test
 	public void testSavePEM() throws Exception {
@@ -505,6 +519,31 @@ public class MainTest
 		String temp = File.createTempFile("junit", "tmp").getAbsolutePath();
 		assumeAndRun("http://localhost:9090","-i","-n","-o", temp);
 		assertHeadersOnly();
+		String content = new String(
+			Files.readAllBytes(Paths.get(temp)));
+		assertThat(content,containsString(html));
+		assertThat(content,not( startsWith("HTTP/1.1 200 OK")));
+		Files.deleteIfExists(Paths.get(temp));
+	}
+	
+	@Test
+	public void testOutfileQuiet() throws Exception {
+		String temp = File.createTempFile("junit", "tmp").getAbsolutePath();
+		assumeAndRun("http://localhost:9090","-s","-o", temp);
+		assertEquals(html,streams.outText());
+		String content = new String(
+			Files.readAllBytes(Paths.get(temp)));
+		assertThat(content,containsString(html));
+		assertThat(content,not( startsWith("HTTP/1.1 200 OK")));
+		Files.deleteIfExists(Paths.get(temp));
+	}
+
+	@Test
+	public void testOutfileQuietWithHeaders() throws Exception {
+		String temp = File.createTempFile("junit", "tmp").getAbsolutePath();
+		assumeAndRun("http://localhost:9090","-s","-i","-o", temp);
+		assertGoodHtmlWithHeaders();
+		assertThat(streams.outText(),startsWith("HTTP/1.1 200 OK"));
 		String content = new String(
 			Files.readAllBytes(Paths.get(temp)));
 		assertThat(content,containsString(html));
