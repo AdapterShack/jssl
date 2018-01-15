@@ -11,6 +11,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.StringWriter;
 import java.io.UnsupportedEncodingException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -85,15 +86,29 @@ public class MainTest
 	  .enableBrowserProxying(true)
 	  );
 		
-	
-	
 	// we use jetty directly (not via wiremock) to handle basic auth
 	@ClassRule
 	public static JettyRule jetty = new JettyRule(9093);
 	
-	static String unicodeJunk = "\u00c4\u00df\u00e7\u00f0";		
-	static String json = "{'user':'abc','pass','123'}";
-	static String html = "<html><head><title>Hello</title></head><body>World</body></html>";
+	static final String unicodeJunk; 		
+	static final String html;
+	static final String json = "{'user':'abc','pass','123'}";
+
+	
+	static { 
+		try {
+			html =
+			new String( Utils.toByteArray(MainTest.class.getResourceAsStream("/index.html")));
+		} catch (IOException e) {
+			throw new RuntimeException(e);
+		}
+		
+		StringWriter sw = new StringWriter();
+		for(int c=0; c < 0x100; c++ ) {
+			sw.write(c);
+		}
+		unicodeJunk = sw.toString();
+	}
 
 	static ResponseDefinitionBuilder withBody = aResponse()
 			.withHeader("Content-type", "text/html; charset=UTF-8")
@@ -509,8 +524,7 @@ public class MainTest
 		assertGoodHtmlWithHeaders();
 		String content = new String(
 			Files.readAllBytes(Paths.get(temp)));
-		assertThat(content,containsString(html));
-		assertThat(content,not( startsWith("HTTP/1.1 200 OK")));
+		assertEquals(content,html);
 		Files.deleteIfExists(Paths.get(temp));
 	}
 
@@ -521,8 +535,7 @@ public class MainTest
 		assertHeadersOnly();
 		String content = new String(
 			Files.readAllBytes(Paths.get(temp)));
-		assertThat(content,containsString(html));
-		assertThat(content,not( startsWith("HTTP/1.1 200 OK")));
+		assertEquals(html,content);
 		Files.deleteIfExists(Paths.get(temp));
 	}
 	
@@ -533,8 +546,7 @@ public class MainTest
 		assertEquals(html,streams.outText());
 		String content = new String(
 			Files.readAllBytes(Paths.get(temp)));
-		assertThat(content,containsString(html));
-		assertThat(content,not( startsWith("HTTP/1.1 200 OK")));
+		assertEquals(html,content);
 		Files.deleteIfExists(Paths.get(temp));
 	}
 
@@ -546,8 +558,7 @@ public class MainTest
 		assertThat(streams.outText(),startsWith("HTTP/1.1 200 OK"));
 		String content = new String(
 			Files.readAllBytes(Paths.get(temp)));
-		assertThat(content,containsString(html));
-		assertThat(content,not( startsWith("HTTP/1.1 200 OK")));
+		assertEquals(html,content);
 		Files.deleteIfExists(Paths.get(temp));
 	}
 	
@@ -559,14 +570,13 @@ public class MainTest
 		assertHeadersOnly();
 		String content = new String(
 			Files.readAllBytes(Paths.get(temp)));
-		assertThat(content,containsString(html));
-		assertThat(content,not( startsWith("HTTP/1.1 200 OK")));
+		assertEquals(html,content);
 		Files.deleteIfExists(Paths.get(temp));
 	}
 
 	
 	@Test
-	public void testCharsetTransation() throws Exception {
+	public void testCharsetTranslation() throws Exception {
 		
 		String saveCS = System.getProperty("file.encoding");
 		System.setProperty("file.encoding", "iso-8859-1");
@@ -579,8 +589,7 @@ public class MainTest
 		byte[] allBytes = Files.readAllBytes(Paths.get(temp));
 		String content = new String(
 			allBytes, "iso-8859-1");
-		assertThat(content,not( startsWith("HTTP/1.1 200 OK")));
-		assertThat(content,containsString(unicodeJunk));
+		assertEquals(unicodeJunk,content);
 		Files.deleteIfExists(Paths.get(temp));
 		System.setProperty("file.encoding", saveCS);
 	}
@@ -604,8 +613,7 @@ public class MainTest
 		byte[] allBytes = Files.readAllBytes(Paths.get(temp));
 		String content = new String(
 			allBytes, "UTF-8");
-		assertThat(content,not( startsWith("HTTP/1.1 200 OK")));
-		assertThat(content,containsString(unicodeJunk));
+		assertEquals(unicodeJunk,content);
 		Files.deleteIfExists(Paths.get(temp));
 		System.setProperty("file.encoding", saveCS);
 	}
@@ -626,8 +634,7 @@ public class MainTest
 		byte[] allBytes = Files.readAllBytes(Paths.get(temp));
 		String content = new String(
 			allBytes, "UTF-8");
-		assertThat(content,not( startsWith("HTTP/1.1 200 OK")));
-		assertThat(content,containsString(unicodeJunk));
+		assertEquals(unicodeJunk,content);
 		Files.deleteIfExists(Paths.get(temp));
 		System.setProperty("file.encoding", saveCS);
 	}
@@ -646,8 +653,7 @@ public class MainTest
 		byte[] allBytes = Files.readAllBytes(Paths.get(temp));
 		String content = new String(
 			allBytes, "UTF-8");
-		assertThat(content,not( startsWith("HTTP/1.1 200 OK")));
-		assertThat(content,containsString(unicodeJunk));
+		assertEquals(unicodeJunk,content);
 		Files.deleteIfExists(Paths.get(temp));
 		System.setProperty("file.encoding", saveCS);
 	}
@@ -931,7 +937,7 @@ public class MainTest
 	public void assertGoodHtml() {
 		assertThat("HTML returned",
 				streams.outText(),
-				containsString("<html"));
+				containsString(html));
 	}
 
 	void assertGoodHtmlWithHeaders() {
