@@ -11,8 +11,11 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.StringWriter;
 import java.io.UnsupportedEncodingException;
+import java.net.Socket;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.KeyStore;
@@ -864,6 +867,67 @@ public class MainTest
 				"GET / HTTP/1.1\nHost: localhost:9091\nConnection: close\n\n");
 		assertSocketConnected();
 		assertGoodHtmlWithHeaders();
+	}
+
+
+	static String noCRLF = "GET / HTTP/1.1\nHost: localhost:9095\nConnection: close\n\n";
+	static String withCRLF = "GET / HTTP/1.1\r\nHost: localhost:9095\r\nConnection: close\r\n\r\n";
+	static String goodResponse = "HTTP/1.1 200 OK\r\n\r\nOK";
+	static String badResponse = "HTTP/1.1 400 BAD REQUEST\r\n\r\nBAD REQUEST";
+	
+	@ClassRule
+	static public SocketListener sl =
+		new SocketListener( 9095, 
+				new SocketListener.Handler() {
+					@Override
+					public void handle(Socket req) throws Exception {
+						req.setSoTimeout(250);
+						InputStream is = req.getInputStream();
+						OutputStream os = req.getOutputStream();
+								
+						byte[] read = new byte[withCRLF.length()];
+						for(int i=0; i<read.length; i++) {
+							read[i] = (byte) is.read();
+						}
+						
+						String reqString = new String(read);
+						
+						if(reqString.equals(withCRLF)) {
+							os.write(goodResponse.getBytes());
+						} else {
+							os.write(badResponse.getBytes());
+						}
+						os.flush();
+					}
+		});
+	
+	@Test
+	public void testCRLFfromStdin() throws Exception {
+		streams.in().write(noCRLF.getBytes());
+		assumeAndRun("tcp://localhost:9095","--crlf");
+		assertThat(streams.outText(), containsString(goodResponse));
+	}
+	
+	@Test
+	public void testCRLFfromStdinAlreadyCRLF() throws Exception {
+		streams.in().write(withCRLF.getBytes());
+		assumeAndRun("tcp://localhost:9095","--crlf");
+		assertThat(streams.outText(), containsString(goodResponse));
+	}
+	
+	
+	@Test
+	public void testCRLFfromData() throws Exception {
+		streams.in().write(noCRLF.getBytes());
+		assumeAndRun("tcp://localhost:9095","--crlf","-d",noCRLF);
+		assertThat(streams.outText(), containsString(goodResponse));
+	}
+	
+	@Test
+	public void testCRLFfromDataAlreadyCRLF() throws Exception {
+		streams.in().write(noCRLF.getBytes());
+		assumeAndRun("tcp://localhost:9095","--crlf","-d",withCRLF);
+		assertThat(streams.outText(), containsString("HTTP/1.1 200 OK"));
 	}
 	
 	@Test
