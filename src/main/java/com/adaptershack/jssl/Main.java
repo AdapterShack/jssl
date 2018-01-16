@@ -2,11 +2,13 @@ package com.adaptershack.jssl;
 
 import java.io.File;
 import java.net.URI;
+import java.util.Properties;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Options;
+import org.omg.CORBA.portable.InputStream;
 
 /**
  * Hello world!
@@ -64,11 +66,18 @@ public class Main  {
 
 		options.addOption("x","proxy",true,"use proxy host:port");
 		options.addOption(null,"socks",false,"indicates proxy is a SOCKS v4 or v5 proxy");
+		options.addOption("v","version",false,"print version information");
 		
         DefaultParser parser = new DefaultParser();
         
         CommandLine cmdLine = parser.parse(options, args);
 
+        if( cmdLine.hasOption("v")) {
+        	System.out.println("JSSL http client - https://github.com/AdapterShack/jssl");
+        	System.out.println(getVersion());
+        	return;
+        }
+        
         if( cmdLine.getArgList().isEmpty() ) {
         	new HelpFormatter().printHelp("java -jar [this-jar-file] [options] url", "Options", options, "", false);
         	return;
@@ -157,7 +166,21 @@ public class Main  {
         
         
     }
-    
+
+	private static String getVersion() {
+		
+		try( java.io.InputStream in = Main.class
+				.getResourceAsStream("/META-INF/maven/com.adaptershack/jssl-client/pom.properties")) {
+			
+			return new String(Utils.toByteArray(in));
+			
+		} catch (Exception e) {
+			e.printStackTrace(System.out);
+		}
+		return "";
+	}
+    	
+	
     
     
 }
