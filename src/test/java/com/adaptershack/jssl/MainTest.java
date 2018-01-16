@@ -291,7 +291,6 @@ public class MainTest
 	
 	@Test
 	public void testCustomCacerts() throws Exception {
-
 		testHTML("https://localhost:9091","--truststore","test-certs/client-cacerts","--trustpass","changeit");
 	}
 	

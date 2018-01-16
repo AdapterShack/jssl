@@ -4,7 +4,7 @@
 
   <groupId>com.adaptershack</groupId>
   <artifactId>jssl-client</artifactId>
-  <version>0.0.3</version>
+  <version>0.0.4-SNAPSHOT</version>
   <packaging>jar</packaging>
 
   <name>jssl-client</name>
@@ -15,6 +15,27 @@
     <maven.compiler.source>1.8</maven.compiler.source>
     <maven.compiler.target>1.8</maven.compiler.target>    
   </properties>
+  
+  <repositories>
+  	<repository>
+  		<id>adaptershack-repo</id>
+  		<name>AdapterShack LLC Maven Repo</name>
+  		<releases>
+  			<enabled>true</enabled>
+  		</releases>
+  		<snapshots>
+  			<enabled>true</enabled>
+  		</snapshots>
+  		<url>http://repo.adaptershack.com/maven</url>
+  	</repository>
+  </repositories>
+
+  <distributionManagement>
+    <repository>
+      <id>adaptershack-ssh</id>
+      <url>scp://deployer@repo.adaptershack.com/home/deployer/maven</url>
+    </repository>
+  </distributionManagement>
 
   <dependencies>
     <dependency>
@@ -40,9 +61,21 @@
 	    <version>1.7.25</version>
 	    <scope>test</scope>
 	</dependency> 
+	<dependency>
+		<groupId>com.adaptershack</groupId>
+		<artifactId>duckrabbit</artifactId>
+		<version>0.0.1-SNAPSHOT</version>
+	</dependency>
 </dependencies>
   
   <build>
+    <extensions>
+      <extension>
+        <groupId>org.apache.maven.wagon</groupId>
+        <artifactId>wagon-ssh</artifactId>
+        <version>3.0.0</version>
+      </extension>
+    </extensions>
   	<plugins>
 		<plugin>
 		  <groupId>org.apache.maven.plugins</groupId>

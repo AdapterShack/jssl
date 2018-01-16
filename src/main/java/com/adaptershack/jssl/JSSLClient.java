@@ -45,7 +45,6 @@ import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
-import javax.net.ssl.X509KeyManager;
 import javax.net.ssl.X509TrustManager;
 import javax.security.auth.x500.X500Principal;
 
@@ -574,7 +573,7 @@ public class JSSLClient {
 			TrustManager[] tm = defaultTMF.getTrustManagers();
 			
 			for(int i=0; i<tm.length; i++) {
-				tm[i] = new TwoLevelTrustManager((X509TrustManager) tm[0], keystoreTM);
+				tm[i] = new TwoLevelTrustManager((X509TrustManager) tm[0], keystoreTM).getProxy();
 			}
 			
 			Log.logEach("Trust Managers: ", tm);
@@ -629,7 +628,7 @@ public class JSSLClient {
 			if(alias != null) {
 				log("Using alias " + alias);
 				for( int i=0; i< keyManagers.length; i++) {
-					keyManagers[i] = new CustomKeyManager((X509KeyManager) keyManagers[i],alias);
+					keyManagers[i] = new CustomKeyManager(keyManagers[i],  alias).getProxy();
 				}
 			}
 			

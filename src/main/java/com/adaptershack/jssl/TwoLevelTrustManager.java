@@ -2,76 +2,28 @@ package com.adaptershack.jssl;
 
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
 
-class TwoLevelTrustManager implements X509TrustManager {
+import com.adaptershack.duckrabbit.DynamicDelegator;
 
-	List<X509TrustManager> tms = new ArrayList<>();
+public class TwoLevelTrustManager extends DynamicDelegator<X509TrustManager> {
+
+	X509TrustManager userTM;
 	
-	public TwoLevelTrustManager(X509TrustManager impl, TrustManager[] keystoreTM) {
-		tms.add(impl);
-		
-		for( TrustManager tm : keystoreTM ) {
-			if(tm instanceof X509TrustManager) {
-				tms.add((X509TrustManager) tm);
-			}
-		}
+	public TwoLevelTrustManager(X509TrustManager impl, TrustManager[] keystoreTMs) {
+		super(impl);
+		userTM = (X509TrustManager) keystoreTMs[0]; 
 	}
 
-	@FunctionalInterface
-	private interface Checker {
-		void check(X509TrustManager tm) throws CertificateException;
-	}
-	
-	private void tryAll(Checker c) throws CertificateException {
-		for(X509TrustManager x : tms) {
-			try {
-				c.check(x);
-				return;
-			} catch (CertificateException e) {
-				Log.log(e.toString());
-			}
-		}
-		throw new CertificateException("No trust manager was able to validate the certificate");
-	}
-
-	
-	@Override
-	public void checkClientTrusted(final X509Certificate[] chain, final String authType) throws CertificateException {
-		tryAll(
-			tm -> tm.checkClientTrusted(chain, authType)
-		);
-	}
-
-	@Override
 	public void checkServerTrusted(final X509Certificate[] chain, final String authType) throws CertificateException {
-		tryAll(
-			tm -> tm.checkServerTrusted(chain, authType)
-		);
-	}
-
-	@Override
-	public X509Certificate[] getAcceptedIssuers() {
-		
-		Set<X509Certificate> certs = new HashSet<>();
-		
-		for(X509TrustManager x : tms) {
-			certs.addAll(Arrays.asList(x.getAcceptedIssuers()));
+		try {
+			wrapped.checkServerTrusted(chain, authType);
+			return;
+		} catch (CertificateException e) {
+			Log.log(e.toString());
 		}
-		
-		return certs.toArray(new X509Certificate[ certs.size() ]  );
+		userTM.checkServerTrusted(chain, authType);
 	}
 
-	public String toString() {
-		return getClass().getSimpleName() + "->" + tms;
-	}
-	
-	
 };
