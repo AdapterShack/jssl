@@ -1,7 +1,5 @@
 package com.adaptershack.jssl;
 
-import static com.adaptershack.jssl.HeaderAwareOutputStream.*;
-
 import java.io.ByteArrayInputStream;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -51,6 +49,7 @@ import javax.security.auth.x500.X500Principal;
 import java.security.cert.X509Certificate;
 
 import static com.adaptershack.jssl.Log.*;
+import static com.adaptershack.jssl.HeaderAwareOutputStream.*;
 
 public class JSSLClient {
 	
@@ -118,6 +117,8 @@ public class JSSLClient {
 	private String proxy;
 	private boolean socks;
 	
+	private int listenPort;
+	
 	
 
 
@@ -145,8 +146,11 @@ public class JSSLClient {
 		
 		if( useSocket ) {
 			
-			doSocket();
-			
+			if(listenPort > 0) {
+				doTunnel();
+			} else {
+				doSocket();
+			}
 			
 		} else {
 			
@@ -172,13 +176,42 @@ public class JSSLClient {
 	}
 
 
+	private void doTunnel() {
+		
+		Log.log("Listening on port %d", listenPort);
+		
+		SocketListener l = new SocketListener(listenPort,
+			(localSocket) -> 	{
+				try (Socket remoteSocket = createSocket()) {
+
+					Log.log("Connection from %s, tunnel to %s:%d",
+							localSocket.getInetAddress().toString(), this.host, this.port);
+					
+					InputStream fromClient = localSocket.getInputStream();
+					OutputStream toClient =   localSocket.getOutputStream();
+					InputStream fromServer = remoteSocket.getInputStream();
+					OutputStream toServer = remoteSocket.getOutputStream();
+					
+					Thread up = new Thread ( new BinaryStreamTransferer(fromClient, toServer, null, false, bufsize));
+					Thread down = new Thread ( new BinaryStreamTransferer(fromServer, toClient, null, false, bufsize));
+					
+					up.start();
+					down.start();
+					
+					down.join();
+					up.interrupt();
+				}
+			}
+		);
+		
+		l.start();
+	}
 
 	private void doSocket() throws IOException, UnknownHostException, InterruptedException, KeyStoreException, NoSuchAlgorithmException, CertificateException, InvalidNameException {
 		
 		log("Opening " + (useSSL ? "SSL " : " ") + "socket to " + host + ":" + port );
 		
-		Socket socket = useSSL ? socketFactory.createSocket(host, port) 
-				: new Socket(host,port);
+		Socket socket = createSocket();
 		
 		try(
 			InputStream socketIn = socket.getInputStream();
@@ -265,6 +298,13 @@ public class JSSLClient {
 		if(System.getProperty("no-exit")==null) {
 			System.exit(0);
 		}
+	}
+
+
+
+	public Socket createSocket() throws IOException, UnknownHostException {
+		return useSSL ? socketFactory.createSocket(host, port) 
+				: new Socket(host,port);
 	}
 
 
@@ -1086,6 +1126,18 @@ public class JSSLClient {
 
 	public void setSocks(boolean socks) {
 		this.socks = socks;
+	}
+
+
+
+	public int getListenPort() {
+		return listenPort;
+	}
+
+
+
+	public void setListenPort(int listenPort) {
+		this.listenPort = listenPort;
 	}
 
 	

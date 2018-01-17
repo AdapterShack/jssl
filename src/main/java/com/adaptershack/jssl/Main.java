@@ -2,13 +2,11 @@ package com.adaptershack.jssl;
 
 import java.io.File;
 import java.net.URI;
-import java.util.Properties;
-
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Options;
-import org.omg.CORBA.portable.InputStream;
+
 
 /**
  * Hello world!
@@ -67,6 +65,8 @@ public class Main  {
 		options.addOption("x","proxy",true,"use proxy host:port");
 		options.addOption(null,"socks",false,"indicates proxy is a SOCKS v4 or v5 proxy");
 		options.addOption("v","version",false,"print version information");
+		
+		options.addOption("t","tunnel",true,"tunnel the specified local port to the host, accepting connections until interrupted or killed");
 		
         DefaultParser parser = new DefaultParser();
         
@@ -160,6 +160,10 @@ public class Main  {
             	client.setSkipHeadersInOutfile(true);
         	}
         	
+        }
+
+        if(cmdLine.hasOption("tunnel")) {
+        	client.setListenPort(Integer.parseInt(cmdLine.getOptionValue("tunnel")));
         }
         
 		client.run(urlString);

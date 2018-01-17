@@ -4,9 +4,7 @@ import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 
-import org.junit.rules.ExternalResource;
-
-public class SocketListener extends ExternalResource {
+public class SocketListener {
 
 	Thread listenerThread;
 	int port;
@@ -17,7 +15,8 @@ public class SocketListener extends ExternalResource {
 		this.handler = handler;
 	}
 
-	interface Handler {
+	@FunctionalInterface
+	public interface Handler {
 		void handle(Socket s) throws Exception;
 	}
 
@@ -25,8 +24,7 @@ public class SocketListener extends ExternalResource {
 	
 	
 	
-	@Override
-	public void before() {
+	public void start() {
 	
 		listenerThread = new Thread(
 				() -> {
@@ -67,8 +65,7 @@ public class SocketListener extends ExternalResource {
 		listenerThread.start();
 	}
 	
-	@Override
-	public void after() {
+	public void stop() {
 		if(listenerThread != null) {
 			listenerThread.interrupt();
 		}

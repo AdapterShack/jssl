@@ -875,8 +875,8 @@ public class MainTest
 	static String badResponse = "HTTP/1.1 400 BAD REQUEST\r\n\r\nBAD REQUEST";
 	
 	@ClassRule
-	static public SocketListener sl =
-		new SocketListener( 9095, 
+	static public SocketListenerRule sl = 
+		new SocketListenerRule( 9095, 
 				new SocketListener.Handler() {
 					@Override
 					public void handle(Socket req) throws Exception {
