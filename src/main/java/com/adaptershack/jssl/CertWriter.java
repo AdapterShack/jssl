@@ -105,8 +105,6 @@ interface CertWriter {
 			
 			X509Certificate x509 = (X509Certificate) cert;
 			
-			p.println("Alias: " + alias);
-			
 			if(verbose) {
 				p.println(x509);
 			} else {
@@ -123,7 +121,7 @@ interface CertWriter {
 				int i=0;
 				for( char c : base64d.toCharArray() ) {
 					p.print(c);
-					if( (++i % 60 ) == 0) {
+					if( (++i % 64 ) == 0) {
 						p.println();
 					}
 				}
@@ -132,6 +130,7 @@ interface CertWriter {
 				throw new KeyStoreException(e);
 			}
 			p.println("-----END CERTIFICATE-----");		
+			p.println("");		
 			
 		}
 

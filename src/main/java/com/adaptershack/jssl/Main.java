@@ -67,6 +67,7 @@ public class Main  {
 		options.addOption("v","version",false,"print version information");
 		
 		options.addOption("t","tunnel",true,"tunnel the specified local port to the host, accepting connections until interrupted or killed");
+		options.addOption(null,"print-certs",false,"print certificates to stdout");
 		
         DefaultParser parser = new DefaultParser();
         
@@ -165,6 +166,8 @@ public class Main  {
         if(cmdLine.hasOption("tunnel")) {
         	client.setListenPort(Integer.parseInt(cmdLine.getOptionValue("tunnel")));
         }
+        
+        client.setPrintCerts(cmdLine.hasOption("print-certs"));
         
 		client.run(urlString);
         

@@ -39,6 +39,7 @@ import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLPeerUnverifiedException;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.TrustManager;
@@ -119,7 +120,7 @@ public class JSSLClient {
 	
 	private int listenPort;
 	
-	
+	boolean printCerts;
 
 
 	public void run (String urlString) throws Exception {
@@ -222,9 +223,12 @@ public class JSSLClient {
 				
 		) {			
 
+			if(printCerts) {
+				printCerts(getCerts(socket));
+			}
+			
 			if(saveCertsFile != null && socket instanceof SSLSocket) {
-				Certificate[] certs = ((SSLSocket) socket).getSession().getPeerCertificates();
-				saveCerts(certs);
+				saveCerts(getCerts(socket));
 			}
 			
 			CountingOutputStream counter =
@@ -299,6 +303,7 @@ public class JSSLClient {
 			System.exit(0);
 		}
 	}
+
 
 
 
@@ -384,10 +389,15 @@ public class JSSLClient {
 			}
 		}
 
-		if( saveCertsFile != null && connection instanceof HttpsURLConnection) {
+		if( (saveCertsFile != null || printCerts) && connection instanceof HttpsURLConnection) {
 			connection.connect();
 			Certificate[] chain = ((HttpsURLConnection) connection).getServerCertificates();
-			saveCerts(chain);
+			if(printCerts) {
+				printCerts(chain);
+			}
+			if(saveCertsFile != null) {
+				saveCerts(chain);
+			}
 		}
 
 		boolean readWholeResponse = printBody && Log.enabled();
@@ -482,8 +492,28 @@ public class JSSLClient {
 		
 	}
 
+	public Certificate[] getCerts(Socket socket) throws SSLPeerUnverifiedException {
+		return ((SSLSocket) socket).getSession().getPeerCertificates();
+	}
 
 
+
+	private void printCerts(Certificate[] chain) throws KeyStoreException, NoSuchAlgorithmException, CertificateException, IOException, InvalidNameException {
+		if(chain.length > 0) {
+			 CertWriter certWriter = CertWriter.getInstance("TEXT");
+			 for(Certificate cert : chain) {
+				 if(cert instanceof X509Certificate) {
+					 certWriter.setCertificateEntry(null, cert);
+				 }
+			 }
+			 certWriter.store(stdout, null);
+		}
+	}
+
+
+
+
+	
 	public void saveCerts(Certificate[] chain) throws KeyStoreException, IOException, NoSuchAlgorithmException,
 			CertificateException, FileNotFoundException, InvalidNameException {
 		if(chain.length > 0) {
@@ -1138,6 +1168,18 @@ public class JSSLClient {
 
 	public void setListenPort(int listenPort) {
 		this.listenPort = listenPort;
+	}
+
+
+
+	public boolean isPrintCerts() {
+		return printCerts;
+	}
+
+
+
+	public void setPrintCerts(boolean printCerts) {
+		this.printCerts = printCerts;
 	}
 
 	
