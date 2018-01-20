@@ -15,6 +15,7 @@ import java.net.MalformedURLException;
 import java.net.PasswordAuthentication;
 import java.net.Proxy;
 import java.net.Socket;
+import java.net.SocketException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -26,11 +27,13 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Scanner;
 
 import javax.naming.InvalidNameException;
 import javax.naming.ldap.LdapName;
@@ -121,6 +124,7 @@ public class JSSLClient {
 	private int listenPort;
 	
 	boolean printCerts;
+	private String proxyAuth;
 
 
 	public void run (String urlString) throws Exception {
@@ -308,8 +312,56 @@ public class JSSLClient {
 
 
 	public Socket createSocket() throws IOException, UnknownHostException {
-		return useSSL ? socketFactory.createSocket(host, port) 
-				: new Socket(host,port);
+		
+		Socket s;
+		
+		if( this.proxy != null ) {
+			
+			String p[] = proxy.split(":",2);
+			
+			s = new Socket(p[0], Integer.parseInt(p[1]));
+			
+			if(proxyAuth != null ) {
+				
+				if(!proxyAuth.contains(":")) {
+					proxyAuth =
+							proxyAuth + ":" + new String(Utils.passwordPrompt("Proxy password: ", stdout, stdin));
+				}
+				
+				String basicAuth = Base64.getEncoder().encodeToString(proxyAuth.getBytes());
+
+				s.getOutputStream().write(
+						("CONNECT " + host + ":" + port + " HTTP/1.1\r\n"
+						+ "Proxy-Authorization: Basic "+basicAuth+"\r\n\r\n").getBytes());
+				
+			} else {
+				
+				s.getOutputStream().write(
+						("CONNECT " + host + ":" + port + " HTTP/1.1\r\n\r\n").getBytes());
+				
+			}
+			
+			
+			@SuppressWarnings("resource")
+			Scanner scanner = new Scanner(s.getInputStream());
+			String nextLine = scanner.nextLine();
+
+			Log.log("Proxy: %s", nextLine);
+			
+			if(!nextLine.startsWith("HTTP/1.1 200")) {
+				throw new RuntimeException("Unable to connect to proxy");
+			}
+			
+			s.getOutputStream().flush();
+			
+			// need to get 
+
+		} else {
+			s = new Socket(host,port);
+		}
+		
+		return useSSL ? socketFactory.createSocket(s, host, port, true) : s;
+		
 	}
 
 
@@ -323,7 +375,7 @@ public class JSSLClient {
 		log("executing URL: %s", urlString);
 
 		HttpURLConnection connection = (HttpURLConnection)
-				( proxy != null ? 
+				( proxy != null ?
 						new URL(urlString).openConnection(createProxy()) :
 						new URL(urlString).openConnection());
 		
@@ -331,7 +383,7 @@ public class JSSLClient {
 		connection.setInstanceFollowRedirects(followRedirects);
 		
 		if(connection instanceof HttpsURLConnection) {
-			((HttpsURLConnection) connection).setSSLSocketFactory(socketFactory);
+			((HttpsURLConnection) connection).setSSLSocketFactory(this.socketFactory);
 		}		
 		
 		if(gzip) {
@@ -390,7 +442,13 @@ public class JSSLClient {
 		}
 
 		if( (saveCertsFile != null || printCerts) && connection instanceof HttpsURLConnection) {
-			connection.connect();
+			
+			try {
+				connection.connect();
+			} catch (SocketException e) {
+				Log.log(e.toString());
+			}
+			
 			Certificate[] chain = ((HttpsURLConnection) connection).getServerCertificates();
 			if(printCerts) {
 				printCerts(chain);
@@ -468,7 +526,6 @@ public class JSSLClient {
 		stdout.flush();
 		
 	}
-
 
 	private Proxy createProxy() {
 		
@@ -1180,6 +1237,18 @@ public class JSSLClient {
 
 	public void setPrintCerts(boolean printCerts) {
 		this.printCerts = printCerts;
+	}
+
+
+
+	public String getProxyAuth() {
+		return proxyAuth;
+	}
+
+
+
+	public void setProxyAuth(String proxyAuth) {
+		this.proxyAuth = proxyAuth;
 	}
 
 	

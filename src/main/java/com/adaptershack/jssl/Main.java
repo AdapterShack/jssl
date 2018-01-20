@@ -68,6 +68,7 @@ public class Main  {
 		
 		options.addOption("t","tunnel",true,"tunnel the specified local port to the host, accepting connections until interrupted or killed");
 		options.addOption(null,"print-certs",false,"print certificates to stdout");
+		options.addOption(null,"proxy-auth", true, "proxy-authorization as user:password");
 		
         DefaultParser parser = new DefaultParser();
         
@@ -168,6 +169,7 @@ public class Main  {
         }
         
         client.setPrintCerts(cmdLine.hasOption("print-certs"));
+        client.setProxyAuth(cmdLine.getOptionValue("proxy-auth"));
         
 		client.run(urlString);
         
