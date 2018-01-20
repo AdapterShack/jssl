@@ -311,56 +311,61 @@ public class JSSLClient {
 
 
 
-	public Socket createSocket() throws IOException, UnknownHostException {
+	public Socket createSocket() {
 		
-		Socket s;
-		
-		if( this.proxy != null ) {
+		try {
+			Socket s;
 			
-			String p[] = proxy.split(":",2);
-			
-			s = new Socket(p[0], Integer.parseInt(p[1]));
-			
-			if(proxyAuth != null ) {
+			if( this.proxy != null ) {
 				
-				if(!proxyAuth.contains(":")) {
-					proxyAuth =
-							proxyAuth + ":" + new String(Utils.passwordPrompt("Proxy password: ", stdout, stdin));
+				String p[] = proxy.split(":",2);
+				
+				s = new Socket(p[0], Integer.parseInt(p[1]));
+				
+				if(proxyAuth != null ) {
+					
+					if(!proxyAuth.contains(":")) {
+						proxyAuth =
+								proxyAuth + ":" + new String(Utils.passwordPrompt("Proxy password: ", stdout, stdin));
+					}
+					
+					String basicAuth = Base64.getEncoder().encodeToString(proxyAuth.getBytes());
+	
+					s.getOutputStream().write(
+							("CONNECT " + host + ":" + port + " HTTP/1.1\r\n"
+							+ "Proxy-Authorization: Basic "+basicAuth+"\r\n\r\n").getBytes());
+					
+				} else {
+					
+					s.getOutputStream().write(
+							("CONNECT " + host + ":" + port + " HTTP/1.1\r\n\r\n").getBytes());
+					
 				}
 				
-				String basicAuth = Base64.getEncoder().encodeToString(proxyAuth.getBytes());
-
-				s.getOutputStream().write(
-						("CONNECT " + host + ":" + port + " HTTP/1.1\r\n"
-						+ "Proxy-Authorization: Basic "+basicAuth+"\r\n\r\n").getBytes());
 				
+				@SuppressWarnings("resource")
+				Scanner scanner = new Scanner(s.getInputStream());
+				String nextLine = scanner.nextLine();
+	
+				Log.log("Proxy: %s", nextLine);
+				
+				if(!nextLine.startsWith("HTTP/1.1 200")) {
+					throw new RuntimeException("Unable to connect to proxy");
+				}
+				
+				s.getOutputStream().flush();
+				
+				// need to get 
+	
 			} else {
-				
-				s.getOutputStream().write(
-						("CONNECT " + host + ":" + port + " HTTP/1.1\r\n\r\n").getBytes());
-				
+				s = new Socket(host,port);
 			}
 			
-			
-			@SuppressWarnings("resource")
-			Scanner scanner = new Scanner(s.getInputStream());
-			String nextLine = scanner.nextLine();
+			return useSSL ? socketFactory.createSocket(s, host, port, true) : s;
 
-			Log.log("Proxy: %s", nextLine);
-			
-			if(!nextLine.startsWith("HTTP/1.1 200")) {
-				throw new RuntimeException("Unable to connect to proxy");
-			}
-			
-			s.getOutputStream().flush();
-			
-			// need to get 
-
-		} else {
-			s = new Socket(host,port);
+		} catch (Exception e) {
+			throw new RuntimeException(e);
 		}
-		
-		return useSSL ? socketFactory.createSocket(s, host, port, true) : s;
 		
 	}
 
@@ -374,11 +379,20 @@ public class JSSLClient {
 		
 		log("executing URL: %s", urlString);
 
-		HttpURLConnection connection = (HttpURLConnection)
+		
+		HttpURLConnection connection;
+		
+		if( proxy != null && proxyAuth !=  null && useSSL) {
+			
+			connection = new CustomConnection(new URL(urlString), this::createSocket );
+			
+		} else {
+			connection = (HttpURLConnection)
 				( proxy != null ?
 						new URL(urlString).openConnection(createProxy()) :
 						new URL(urlString).openConnection());
-		
+		}
+	
 		connection.setUseCaches(useCaches);
 		connection.setInstanceFollowRedirects(followRedirects);
 		
