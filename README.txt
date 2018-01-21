@@ -44,17 +44,21 @@ are not used. We do without HttpComponents, commons-lang, slf4j, or any of their
 equivalents. The fact that this is doable, shows that the JDK provides much more
 useful built-in functionality now that it once did.
 
-usage: java -jar [this-jar-file] [options] url
+Usage: java -jar [this-jar-file] [options] url
+
 Options
+
  -a,--no-auth               disable HTTP Basic auth
     --alias <arg>           use alias from keystore
- -b,--binary                disables charset conversions and retrives
+ -b,--binary                disables charset conversions and retrieves
                             content from the server byte for byte
     --buffer <arg>          buffer size for binary mode (default 1024)
     --content-type <arg>    force content type
     --crlf                  in socket mode, perform outbound CRLF
                             translation
  -d,--data <arg>            data to be posted to server
+    --debug                 turn on SSL debugging (equivalent to
+                            -Djavax.ssl.debug=all
     --download <arg>        print only headers, write only body to file
                             (equivalent to -i -n -o for http, -b -n
                             --skip-headers -o for socket)
@@ -71,6 +75,8 @@ Options
     --no-cache              disallow caching
  -o,--out-file <arg>        write response body to file
  -p,--ssl-protocol <arg>    protocol to intialize SSLContext
+    --print-certs           print certificates to stdout
+    --proxy-auth <arg>      proxy-authorization as user:password
  -s,--silent                silences progress messages
     --save-certs <arg>      save server's certs to file
     --save-chain <arg>      how many certs of the chain to save (default
@@ -78,11 +84,17 @@ Options
     --save-pass <arg>       password for saved keystore
     --save-type <arg>       type of saved keystore
     --skip-headers          in socket mode, omit headers from out-file
+    --socks                 indicates proxy is a SOCKS v4 or v5 proxy
     --storepass <arg>       password to open keystore
+ -t,--tunnel <arg>          tunnel the specified local port to the host,
+                            accepting connections until interrupted or
+                            killed
     --trustpass <arg>       trust store password
     --truststore <arg>      custom trust store for server certs, if any
+ -v,--version               print version information
  -w,--wget                  auto-download file with name taken from url
  -X,--request <arg>         force request method
+ -x,--proxy <arg>           use proxy host:port
  -z,--ping                  just determine if the port is open, don't send
                             any data
 
@@ -117,7 +129,7 @@ from the content-type header.
 
 Turn on verbose Java SSL debugging (the real reason this tool exists):
 
-   java -Djavax.net.debug=all -jar jssl.jar https://www.example.com
+   java -jar jssl.jar https://www.example.com --debug
 
 Open an interactive session on secure socket, so you can manually enter HTTP request:
 
@@ -136,7 +148,3 @@ Compose an arbitrary HTTP request and download the result:
    java -jar jssl.jar ssl://www.example.com -d 'GET /images/foo.png HTTP/1.1\nHost: www.example.com\n\n' --download foo.png 
 
 There is no need for -b here either, because --download auto-enables it.
-
-
-
-
