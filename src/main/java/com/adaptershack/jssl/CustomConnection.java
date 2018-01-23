@@ -20,9 +20,15 @@ import java.util.function.Supplier;
 
 /**
  * Wrote a new subclass of HttpURLConnection because HttpsURLConnection
- * doesn't play well with already-opened sockets.
+ * doesn't play well with either proxy auth nor already-opened sockets.
+ * This means the standard class will neither send the proxy-authorization
+ * header to the proxy like it is supposed to, nor will it operate on an 
+ * open socket where we have already sent the CONNECT and the proxy-auth.
  * 
- * Concept inpsired by:
+ * This class implements just enough of the URLConnection API to make the
+ * JSSLClient work.
+ * 
+ * Concept inspired by:
  * 
  * https://stackoverflow.com/questions/34877470/basic-proxy-authentication-for-https-urls-returns-http-1-0-407-proxy-authenticat
  * 
