@@ -1,5 +1,6 @@
 package com.adaptershack.jssl;
 
+import java.io.BufferedOutputStream;
 import java.io.DataInput;
 import java.io.DataInputStream;
 import java.io.FilterOutputStream;
@@ -59,6 +60,7 @@ public class CustomConnection extends HttpURLConnection {
 	
 	List<String> headerlines = new ArrayList<>();
 	Map<String, List<String>> headers = new HashMap<>();
+	private boolean chunked;
 	
 	@Override
 	public void connect() throws IOException {
@@ -95,9 +97,11 @@ public class CustomConnection extends HttpURLConnection {
 			}
 		}
 		
-		// don't bother about content-length just chunk it
 		if(method.equalsIgnoreCase("POST") || method.equalsIgnoreCase("PUT")) {
-			out.write( ("Transfer-Encoding: chunked\r\n").getBytes());
+			if(super.getRequestProperty("content-length") == null) {
+				chunked = true;
+				out.write( ("Transfer-Encoding: chunked\r\n").getBytes());
+			}
 		}
 		
 		out.write( ("Connection: close\r\n\r\n").getBytes());
@@ -182,7 +186,7 @@ public class CustomConnection extends HttpURLConnection {
 		
 		connect();
 		
-		return new FilterOutputStream(out) {
+		return chunked ? new FilterOutputStream(out) {
 
 			@Override
 			public void write(int b) throws IOException {
@@ -212,9 +216,16 @@ public class CustomConnection extends HttpURLConnection {
 			public void close() throws IOException {
 				out.write("0\r\n".getBytes());
 				out.write("\r\n".getBytes());
+				// don't close it, it will close the socket
 				out.flush();
 			}
 			
+		} : 
+		new BufferedOutputStream(out, Math.min(8192, Integer.parseInt(super.getRequestProperty("content-length")))) {
+			public void close() throws IOException {
+				// don't close it, it will close the socket
+				flush();
+			}
 		};
 		
 	}

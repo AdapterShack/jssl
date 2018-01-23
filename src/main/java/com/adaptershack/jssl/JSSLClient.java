@@ -447,6 +447,8 @@ public class JSSLClient {
 				connection.setRequestProperty("content-type", contentType);
 			}
 
+			connection.setRequestProperty("Content-Length", Integer.toString( postData.length));
+			
 			connection.setDoOutput(true);
 			
 			try(OutputStream out = connection.getOutputStream()) {
