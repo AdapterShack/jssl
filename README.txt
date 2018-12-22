@@ -1,4 +1,4 @@
-JSSL is a Java implementation of a HTTP, HTTPS, SSL, and TCP sockets client.
+JeffSSL is a Java implementation of a HTTP, HTTPS, SSL, and TCP sockets client.
 
 Command-line options are intended to be reminescent of keytool if they deal with
 keystores, and roughly similar to cUrl otherwise. Obviously, not every option 
