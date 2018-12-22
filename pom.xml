@@ -7,8 +7,8 @@
   <version>0.0.5-SNAPSHOT</version>
   <packaging>jar</packaging>
 
-  <name>jssl-client</name>
-  <url>https://github.com/AdapterShack/jsslg</url>
+  <name>Jeff's SSL Client</name>
+  <url>https://github.com/AdapterShack/jssl</url>
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -26,7 +26,7 @@
   		<snapshots>
   			<enabled>true</enabled>
   		</snapshots>
-  		<url>https://repo.adaptershack.com:8443/maven</url>
+  		<url>http://repo.adaptershack.com/maven</url>
   	</repository>
   </repositories>
 

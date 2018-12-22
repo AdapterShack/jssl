@@ -75,7 +75,7 @@ public class Main  {
         CommandLine cmdLine = parser.parse(options, args);
 
         if( cmdLine.hasOption("v")) {
-        	System.out.println("JSSL http client - https://github.com/AdapterShack/jssl");
+        	System.out.println("Jeff's SSL client - https://github.com/AdapterShack/jssl");
         	System.out.println(getVersion());
         	return;
         }
